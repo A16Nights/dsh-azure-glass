@@ -1,0 +1,53 @@
+{
+  "name": "dsh-azure-glass",
+  "version": "0.1.0",
+  "description": "[测试版] 苍蓝琉璃（Azure Glass）—— DeepSeek Harness (DSH) 一体化性能与视觉美化插件：长会话视口虚拟化、壁纸库与视差、分区毛玻璃、主题色调中心、琉璃收纳匣、霓虹点击特效与自定义会话头像。",
+  "type": "module",
+  "main": "./index.js",
+  "license": "MIT",
+  "author": "A16Nights",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/A16Nights/dsh-azure-glass.git"
+  },
+  "homepage": "https://github.com/A16Nights/dsh-azure-glass#readme",
+  "bugs": {
+    "url": "https://github.com/A16Nights/dsh-azure-glass/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "azure-glass",
+    "performance",
+    "virtualization",
+    "wallpaper",
+    "glass",
+    "ui"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "immediately": true,
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-client-locale": "*",
+    "@deepseek-ai/dsh-client-ui-settings": "*",
+    "@deepseek-ai/dsh-client-ui-slots": "*"
+  }
+}
