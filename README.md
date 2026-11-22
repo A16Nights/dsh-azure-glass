@@ -8,7 +8,7 @@
 </picture>
 
 <p>
-  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.1.2_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.1.2 Beta"></a>
+  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.1.3_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.1.3 Beta"></a>
   <a href="https://github.com/A16Nights/dsh-azure-glass/stargazers"><img src="https://img.shields.io/github/stars/A16Nights/dsh-azure-glass?style=flat-square&label=Stars&color=38bdf8&labelColor=1e293b" alt="Stars"></a>
   <img src="https://img.shields.io/badge/DeepSeek_Harness-Desktop_%7C_Web-8b5cf6?style=flat-square&labelColor=1e293b" alt="DeepSeek Harness">
   <img src="https://img.shields.io/badge/Build_Deps-Zero-06b6d4?style=flat-square&labelColor=1e293b" alt="Zero Build Deps">
@@ -29,7 +29,7 @@
 </div>
 
 > [!WARNING]
-> **当前处于早期测试阶段（v0.1.2 Beta）**
+> **当前处于早期测试阶段（v0.1.3 Beta）**
 > 本插件仍在持续迭代与打磨中，部分功能、配置结构与界面细节可能会在后续版本中调整。如遇到问题或有改进建议，欢迎在 [Issues](https://github.com/A16Nights/dsh-azure-glass/issues) 反馈。
 
 **苍蓝琉璃（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，兼顾超长对话的丝滑流畅度与高度自由的桌面级毛玻璃视觉定制。
@@ -118,7 +118,7 @@ Antigravity 风格合并式会话锚点轨道（支持左/右侧停靠与悬停�
 ### 📑 5. Antigravity 布局与 🫧 琉璃收纳匣
 - **Antigravity 风格合并式会话锚点轨道**：无缝接管对话导航，支持自由切换左/右侧停靠；最近 N 轮逐点展示、早期轮次按块自动合并，悬停弹出对话速览卡片，点击精准跳转。
 - **章节大纲与快捷胶囊**：长对话顶部提供轻量化快捷导航入口，随时定位历史轮次。
-- **超长代码块自动折叠**：自定义代码块最大展示高度，超出自动折叠并支持一键展开/收起。
+- **超长代码块自动折叠 &amp; Mermaid 图示渲染**：自定义代码块最大展示高度并支持一键展开/收起；内置按需加载的 Mermaid 渲染引擎，自动将 `mermaid` 代码块原地渲染为流程图/时序图并随深浅色主题重绘。
 - **对话交互增强**：支持自定义聊天主区最大宽度、流式输出丝滑滚底跟随、输入框自动收起。
 - **🫧 琉璃收纳匣**：将对话输入框底部的各类插件按钮收纳进紧凑轻盈的向上展开浮层，在工坊内可按区域逐个决定每个控件放进「匣内」或保留在「原位」。
 
@@ -130,6 +130,16 @@ Antigravity 风格合并式会话锚点轨道（支持左/右侧停靠与悬停�
   - 支持本地上传图片、GIF 动图（可选原图直传以保留动画）与网络 URL；
   - 内置 **1:1 交互式头像裁切工作台**，支持拖拽定位、缩放与一键居中；
   - 独立的用户头像库与助手头像库，随时收藏、一键切换与移除。
+
+### 🎭 7. 皮肤创意工坊
+- **本地 DSH v2 皮肤库管理**：自动扫描本地 `~/.dsh/skins/` 皮肤包，支持预览图展示、一键切换应用、安全删除与标准 v2 `.zip` 皮肤包导入（内置防 Zip Slip 路径穿越保护，并强制忽略不安全的 `hooks.mjs`）。
+- **8 套内置精选昼夜双色皮肤**：内置 Catppuccin Mocha、Tokyo Night、Nord、Rosé Pine、Dracula、Kanagawa、Everforest、Sakura 等 8 套经典主题，昼夜双色自适应、即点即用且不污染本地皮肤目录。
+- **壁纸共存让位**：启用 Wallpaper Engine 动态壁纸时可自动剥离皮肤背景层，仅保留主题配色与细节样式。
+
+### 🔌 8. 插件更新中心
+- **全量第三方插件扫描与并发查新**：自动扫描当前 Profile 已安装的第三方插件，并发查询 npm 与 GitHub 仓库最新版本，支持按关键词检索、状态图标一键启停以及单个/全部批量更新。
+- **双端灵活展示**：支持在「仅苍蓝琉璃内显示」与「同时挂载到官方插件页」之间自由切换，并兼容官方插件详情页原生插槽。
+- **可复制更新清单卡片**：检查更新完成后弹出排版清晰的更新版本清单卡片，支持自由框选文本与「📋 一键复制」。
 
 <h2 id="coexist">
 <picture>
@@ -150,7 +160,7 @@ flowchart LR
 ### 🤝 Wallpaper Engine 插件深度共存兼容
 - **无感自动检测**：仅在检测到已安装 `dsh-plugin-wallpaper-engine` 时自动启用共存管理，未安装时界面保持纯净无多余选项。
 - **动态壁纸自动让位**：当 Wallpaper Engine 壁纸启用时，苍蓝琉璃自动暂停自身壁纸与 3D 视差层，优先保证 Wallpaper Engine 动态壁纸正常显示；对方关闭壁纸后自动无损恢复。
-- **重叠模块按需接管**：针对「分区毛玻璃」「色彩、文本改色、字体与光标」「自定义会话头像」三项重叠功能，提供独立切换按钮：
+- **重叠模块按需接管**：针对「分区毛玻璃」「对话输入框（独立控制）」「色彩、文本改色、字体与光标」「自定义会话头像」四项重叠功能，提供独立切换按钮：
   - 选择 **由苍蓝琉璃控制**：自动屏蔽 Wallpaper Engine 对应的重叠样式与节点；
   - 选择 **由 Wallpaper Engine 控制**：释放对方控制权，并将苍蓝琉璃对应控制区域柔和变灰并标注提示，避免样式互相打架。
 

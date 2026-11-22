@@ -189,8 +189,14 @@ window.__ModuleLoader__.load({
       },
 
       weControlGlass: true,
+      weControlComposer: true,
       weControlColor: true,
-      weControlAvatar: true
+      weControlAvatar: true,
+
+      mermaidEnabled: true,
+      activeSkinId: '',
+      skinRespectWe: true,
+      pluginUpdaterPlacement: 'both'
     };
 
     const STUDIO_UI_OFFICIAL_THEMES = [
@@ -583,6 +589,10 @@ window.__ModuleLoader__.load({
       return !weCompatState.installed || config.weControlGlass !== false;
     }
 
+    function isComposerOwnedByAzure() {
+      return !weCompatState.installed || config.weControlComposer !== false;
+    }
+
     function isAzureColorOwner() {
       return !weCompatState.installed || config.weControlColor !== false;
     }
@@ -641,6 +651,7 @@ window.__ModuleLoader__.load({
         try { applyVisualStyles(); } catch {}
         try { ensureWallpaperLayer(); } catch {}
         try { syncAvatarLayer(); } catch {}
+        try { void applyActiveSkin(); } catch {}
       }
     }
 
@@ -2499,7 +2510,9 @@ window.__ModuleLoader__.load({
       const proseFilter = config.proseBoost === 'strong' ? 'brightness(1.18) saturate(1.14)'
         : config.proseBoost === 'soft' ? 'brightness(1.08) saturate(1.06)' : '';
 
+      const composerOwnedByAzure = isComposerOwnedByAzure();
       document.documentElement.setAttribute('data-dsh-sg-glass', glassActive ? '1' : '0');
+      document.documentElement.setAttribute('data-dsh-sg-composer-we', composerOwnedByAzure ? '0' : '1');
       document.documentElement.setAttribute('data-dsh-sg-turbo', config.turboMode ? '1' : '0');
       document.documentElement.setAttribute('data-dsh-sg-theme', theme);
 
@@ -2619,11 +2632,23 @@ window.__ModuleLoader__.load({
           border-color: transparent !important;
           box-shadow: none !important;
         }
+        ${composerOwnedByAzure ? `
         [data-composer-card] {
-          ${wpActive ? `background-color: rgba(${surfaceRgb}, ${config.glassComposerOpacity}) !important;` : ''}
+          ${(wpActive || weCompatState.installed) ? `background-color: rgba(${surfaceRgb}, ${config.glassComposerOpacity}) !important;` : ''}
           border-radius: ${config.glassRadiusPx}px !important;
           border-color: ${borderCol} !important;
         }
+        ${weCompatState.installed ? `
+        body[data-we-glass-page] [data-composer-card],
+        body[data-we-wallpaper] [data-composer-card] {
+          background-image: none !important;
+          box-shadow: none !important;
+          border-color: ${borderCol} !important;
+        }
+        body[data-we-ui-color] [data-composer-seat] {
+          --dsw-alias-button-info-fill: var(--dsw-alias-brand-primary) !important;
+          --dsw-alias-button-info-hover: var(--dsw-alias-brand-primary) !important;
+        }` : ''}` : ''}
         /* 侧边对话输入框：独立不透明度 / 模糊半径 + 右侧留白 */
         [class*="sidechatComposer"]:not([class*="sidechatComposerInput"]):not([class*="sidechatComposerBar"]):not([class*="sidechatComposerTools"]):not([class*="sidechatComposerSpacer"]) {
           background: rgba(${surfaceRgb}, ${sidechatCompOp}) !important;
@@ -2650,13 +2675,14 @@ window.__ModuleLoader__.load({
           transform: translate3d(0, 0, 0);
           backface-visibility: hidden;
         }
+        ${composerOwnedByAzure ? `
         html[data-dsh-sg-glass="1"] [data-composer-card] {
           backdrop-filter: blur(${compBlur}) saturate(${config.glassSaturate}%) !important;
           -webkit-backdrop-filter: blur(${compBlur}) saturate(${config.glassSaturate}%) !important;
           isolation: isolate;
           transform: translate3d(0, 0, 0);
           backface-visibility: hidden;
-        }
+        }` : ''}
         html[data-dsh-sg-glass="1"] [role="dialog"],
         html[data-dsh-sg-glass="1"] [role="alertdialog"],
         html[data-dsh-sg-glass="1"] dialog[open] {
@@ -3828,6 +3854,42 @@ window.__ModuleLoader__.load({
           border-color: ${stUi.p};
           background: ${stUi.hoverBg};
           color: ${isLight ? stUi.titleText : '#ffffff'};
+        }
+        .dsh-sg-power-btn {
+          padding: 5px 7px;
+          min-width: 30px;
+          height: 30px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+        }
+        .dsh-sg-power-btn[data-enabled="1"] {
+          border-color: rgba(34,197,94,0.45);
+          background: rgba(34,197,94,0.14);
+          color: ${isLight ? '#16a34a' : '#4ade80'};
+        }
+        .dsh-sg-power-btn[data-enabled="1"]:hover:not(:disabled) {
+          border-color: rgba(248,113,113,0.62);
+          background: rgba(239,68,68,0.18);
+          color: ${isLight ? '#dc2626' : '#f87171'};
+          box-shadow: 0 0 10px rgba(239,68,68,0.28);
+          transform: translateY(-1px);
+        }
+        .dsh-sg-power-btn[data-enabled="0"] {
+          border-color: rgba(148,163,184,0.28);
+          background: rgba(148,163,184,0.08);
+          color: ${isLight ? '#64748b' : '#94a3b8'};
+        }
+        .dsh-sg-power-btn[data-enabled="0"]:hover:not(:disabled) {
+          border-color: rgba(34,197,94,0.62);
+          background: rgba(34,197,94,0.2);
+          color: ${isLight ? '#16a34a' : '#4ade80'};
+          box-shadow: 0 0 10px rgba(34,197,94,0.28);
+          transform: translateY(-1px);
+        }
+        .dsh-sg-power-btn:active:not(:disabled) {
+          transform: scale(0.94);
         }
         .dsh-sg-btn[data-active="1"],
         .dsh-sg-btn-primary {
@@ -6380,6 +6442,703 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // -----------------------------------------------------------------------
+    // Skin Workshop Runtime (with Wallpaper Engine background yield)
+    // -----------------------------------------------------------------------
+    const SKIN_STYLE_ID = 'dsh-ag-skin-style';
+    let lastAppliedSkinKey = '';
+    let skinApplySeq = 0;
+
+    async function applyActiveSkin(force = false) {
+      const skinId = typeof config.activeSkinId === 'string' ? config.activeSkinId.trim() : '';
+      const stripBg = Boolean(weCompatState.wallpaperActive && config.skinRespectWe !== false);
+      const key = skinId ? `${skinId}::${stripBg ? '1' : '0'}` : '';
+      if (!force && key === lastAppliedSkinKey) return;
+      lastAppliedSkinKey = key;
+
+      const existing = document.getElementById(SKIN_STYLE_ID);
+      if (!skinId) {
+        if (existing) existing.remove();
+        document.documentElement.removeAttribute('data-dsh-skin');
+        return;
+      }
+
+      const seq = ++skinApplySeq;
+      try {
+        const res = await fetch(`${API_BASE}/skins/css?id=${encodeURIComponent(skinId)}&stripBg=${stripBg ? '1' : '0'}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (seq !== skinApplySeq || !data?.ok || typeof data.css !== 'string') return;
+        let styleEl = document.getElementById(SKIN_STYLE_ID);
+        if (!styleEl) {
+          styleEl = document.createElement('style');
+          styleEl.id = SKIN_STYLE_ID;
+        }
+        styleEl.textContent = data.css;
+        document.head.appendChild(styleEl);
+        document.documentElement.setAttribute('data-dsh-skin', skinId);
+      } catch {}
+    }
+
+    // -----------------------------------------------------------------------
+    // On-demand Mermaid Diagram Renderer (auto dark/light sync)
+    // -----------------------------------------------------------------------
+    const MERMAID_KEYWORDS_RE = /^\s*(?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|pie|mindmap|timeline|gitGraph|journey|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|xychart-beta|sankey-beta|block-beta)\b/;
+    let mermaidLoadPromise = null;
+    let mermaidObs = null;
+    let mermaidScanTimer = null;
+    let mermaidLastTheme = '';
+    let mermaidRenderSeq = 0;
+
+    function ensureMermaidLoaded() {
+      if (typeof window !== 'undefined' && window.mermaid && typeof window.mermaid.render === 'function') {
+        return Promise.resolve(window.mermaid);
+      }
+      if (mermaidLoadPromise) return mermaidLoadPromise;
+      mermaidLoadPromise = new Promise((resolve) => {
+        try {
+          const s = document.createElement('script');
+          s.src = `${API_BASE}/mermaid.js`;
+          s.async = true;
+          s.onload = () => resolve(window.mermaid || null);
+          s.onerror = () => { mermaidLoadPromise = null; resolve(null); };
+          document.head.appendChild(s);
+        } catch {
+          mermaidLoadPromise = null;
+          resolve(null);
+        }
+      });
+      return mermaidLoadPromise;
+    }
+
+    function isMermaidCodeBlock(preEl) {
+      if (!preEl || preEl.closest('.dsh-sg-root, [data-dsh-ag-mermaid-wrap]')) return null;
+      const codeEl = preEl.querySelector('code') || preEl;
+      const src = (codeEl.textContent || '').trim();
+      if (src.length < 8 || src.length > 40000) return null;
+      const cls = `${preEl.className || ''} ${codeEl.className || ''}`.toLowerCase();
+      const wrap = preEl.closest('.md-code-block') || preEl.parentElement;
+      const langLabel = wrap?.querySelector?.('[class*="_language_"], [class*="lang"], .md-code-block-infostring')?.textContent?.trim()?.toLowerCase() || '';
+      const isTaggedMermaid = cls.includes('language-mermaid') || cls.includes('lang-mermaid') || langLabel === 'mermaid';
+      const isGenericLabel = !langLabel || langLabel === '代码块' || langLabel === 'code block' || langLabel === 'text' || langLabel === 'plain';
+      if (!isTaggedMermaid && !(isGenericLabel && MERMAID_KEYWORDS_RE.test(src))) return null;
+      return { host: wrap?.classList?.contains('md-code-block') ? wrap : preEl, src };
+    }
+
+    async function scanAndRenderMermaid(forceRerender = false) {
+      if (config.mermaidEnabled === false) {
+        document.querySelectorAll('[data-dsh-ag-mermaid-wrap]').forEach((el) => el.remove());
+        document.querySelectorAll('[data-dsh-ag-mermaid-hidden]').forEach((el) => {
+          el.style.display = '';
+          el.removeAttribute('data-dsh-ag-mermaid-hidden');
+        });
+        return;
+      }
+
+      const theme = detectTheme() === 'dark' ? 'dark' : 'default';
+      const themeChanged = forceRerender || (mermaidLastTheme && mermaidLastTheme !== theme);
+      const pres = document.querySelectorAll('pre');
+      const targets = [];
+      for (const pre of pres) {
+        const match = isMermaidCodeBlock(pre);
+        if (!match) continue;
+        const host = match.host;
+        const prevSrc = host.getAttribute('data-dsh-ag-mermaid-src');
+        const prevTheme = host.getAttribute('data-dsh-ag-mermaid-theme');
+        if (!themeChanged && prevSrc === match.src && prevTheme === theme) continue;
+        targets.push(match);
+      }
+      if (targets.length === 0) return;
+
+      const mermaid = await ensureMermaidLoaded();
+      if (!mermaid || typeof mermaid.render !== 'function') return;
+      mermaidLastTheme = theme;
+      try {
+        mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' });
+      } catch {}
+
+      for (const { host, src } of targets) {
+        try {
+          const rid = `dsh-ag-mmd-${++mermaidRenderSeq}`;
+          const rendered = await mermaid.render(rid, src);
+          const svg = typeof rendered === 'string' ? rendered : rendered?.svg;
+          if (!svg) continue;
+
+          host.setAttribute('data-dsh-ag-mermaid-src', src);
+          host.setAttribute('data-dsh-ag-mermaid-theme', theme);
+          let box = host.nextElementSibling;
+          if (!box || !box.hasAttribute('data-dsh-ag-mermaid-wrap')) {
+            box = document.createElement('div');
+            box.setAttribute('data-dsh-ag-mermaid-wrap', '1');
+            box.style.cssText = 'margin:8px 0;padding:12px;border-radius:10px;border:1px solid rgba(148,163,184,0.25);background:rgba(15,23,42,0.18);overflow-x:auto;position:relative;';
+            host.insertAdjacentElement('afterend', box);
+          }
+          const showSource = box.getAttribute('data-show-source') === '1';
+          box.innerHTML = '';
+
+          const bar = document.createElement('div');
+          bar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:11px;opacity:0.78;';
+          const title = document.createElement('span');
+          title.textContent = 'Mermaid 图示';
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = showSource ? '隐藏源码' : '查看源码';
+          btn.style.cssText = 'padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.35);background:transparent;color:inherit;cursor:pointer;font-size:11px;';
+          btn.onclick = () => {
+            const nextShow = box.getAttribute('data-show-source') !== '1';
+            box.setAttribute('data-show-source', nextShow ? '1' : '0');
+            host.style.display = nextShow ? '' : 'none';
+            if (nextShow) host.removeAttribute('data-dsh-ag-mermaid-hidden');
+            else host.setAttribute('data-dsh-ag-mermaid-hidden', '1');
+            btn.textContent = nextShow ? '隐藏源码' : '查看源码';
+          };
+          bar.appendChild(title);
+          bar.appendChild(btn);
+
+          const svgWrap = document.createElement('div');
+          svgWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;min-height:40px;';
+          svgWrap.innerHTML = svg;
+
+          box.appendChild(bar);
+          box.appendChild(svgWrap);
+
+          if (!showSource) {
+            host.style.display = 'none';
+            host.setAttribute('data-dsh-ag-mermaid-hidden', '1');
+          }
+        } catch {
+          // Leave original code block intact while streaming or on invalid syntax
+        }
+      }
+    }
+
+    function scheduleMermaidScan(force = false) {
+      if (mermaidScanTimer) clearTimeout(mermaidScanTimer);
+      mermaidScanTimer = setTimeout(() => {
+        mermaidScanTimer = null;
+        void scanAndRenderMermaid(force);
+      }, force ? 120 : 450);
+    }
+
+    function syncMermaidEngine() {
+      if (config.mermaidEnabled === false) {
+        if (mermaidObs) { try { mermaidObs.disconnect(); } catch {} mermaidObs = null; }
+        void scanAndRenderMermaid(false);
+        return;
+      }
+      if (!mermaidObs && typeof MutationObserver === 'function' && document.body) {
+        mermaidObs = new MutationObserver(() => scheduleMermaidScan(false));
+        mermaidObs.observe(document.body, { childList: true, subtree: true });
+      }
+      scheduleMermaidScan(false);
+    }
+
+    // -----------------------------------------------------------------------
+    // Official Settings -> Plugins Page Quick Update Bar & Update Summary Helpers
+    // -----------------------------------------------------------------------
+    const OFFICIAL_UPDATER_BAR_ID = 'dsh-ag-official-plugin-updater-bar';
+    const OFFICIAL_UPDATER_POPUP_ID = 'dsh-ag-official-plugin-popup-card';
+    let officialUpdaterObs = null;
+    let officialUpdaterTimer = null;
+    let officialUpdaterRepositionCleanup = null;
+
+    function formatUpdatableSummaryText(updatableList) {
+      if (!Array.isArray(updatableList) || updatableList.length === 0) return '';
+      return updatableList
+        .map((p) => `${p.name}\n${p.installedVersion || '?'} → ${p.updateInfo?.latestVersion || '?'}`)
+        .join('\n');
+    }
+
+    async function copyTextToClipboard(text) {
+      const value = String(text || '');
+      if (!value) return false;
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+          return true;
+        }
+      } catch {}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return Boolean(ok);
+      } catch {
+        return false;
+      }
+    }
+
+    function removeOfficialUpdaterPopup() {
+      if (typeof officialUpdaterRepositionCleanup === 'function') {
+        try { officialUpdaterRepositionCleanup(); } catch {}
+        officialUpdaterRepositionCleanup = null;
+      }
+      const pop = document.getElementById(OFFICIAL_UPDATER_POPUP_ID);
+      if (pop) pop.remove();
+    }
+
+    function removeOfficialUpdaterBar() {
+      removeOfficialUpdaterPopup();
+      const el = document.getElementById(OFFICIAL_UPDATER_BAR_ID);
+      if (el) el.remove();
+    }
+
+    function findOfficialPluginsToolbarSeat() {
+      // 1. Primary official hook: [data-plugin-panel] -> [data-plugin-group="bundles"] -> firstElementChild ("Installed" header)
+      const panel = document.querySelector('[data-plugin-panel]');
+      if (panel instanceof HTMLElement && !panel.closest('.dsh-sg-root')) {
+        const bundles = panel.querySelector('[data-plugin-group="bundles"]');
+        if (bundles instanceof HTMLElement) {
+          const head = bundles.firstElementChild;
+          if (head instanceof HTMLElement) {
+            return { seat: head, mode: 'head' };
+          }
+          return { seat: bundles, mode: 'prepend' };
+        }
+        // Fallback inside [data-plugin-panel] if bundles group attribute changed
+        const candidates = panel.querySelectorAll('h1, h2, h3, h4, [role="heading"], div, span');
+        for (const el of candidates) {
+          if (el.closest('.dsh-sg-root') || el.id === OFFICIAL_UPDATER_BAR_ID) continue;
+          const txt = (el.textContent || '').trim();
+          if (/^(?:已安装|已安装插件|Installed(?:\s+Plugins)?)(?:\s*[（(]?\d+[)）]?)?$/i.test(txt)) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              return { seat: el, mode: 'after' };
+            }
+          }
+        }
+      }
+
+      // 2. Fallback when [data-plugin-panel] wrapper is absent
+      const headings = document.querySelectorAll('h1, h2, h3, h4, [role="heading"], div');
+      for (const el of headings) {
+        if (el.closest('.dsh-sg-root') || el.id === OFFICIAL_UPDATER_BAR_ID) continue;
+        if (el.children.length > 3) continue;
+        const txt = (el.textContent || '').trim();
+        if (/^(?:已安装|已安装插件|Installed(?:\s+Plugins)?)(?:\s*[（(]?\d+[)）]?)?$/i.test(txt)) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            return { seat: el, mode: 'after' };
+          }
+        }
+      }
+      return null;
+    }
+
+    function ensureOfficialUpdaterStyles() {
+      const styleId = 'dsh-ag-official-updater-style';
+      if (document.getElementById(styleId)) return;
+      const st = document.createElement('style');
+      st.id = styleId;
+      st.textContent = `
+        .dsh-ag-ou-btn {
+          cursor: pointer;
+          font-size: 12px;
+          line-height: 18px;
+          border-radius: 7px;
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, transform 0.12s ease;
+        }
+        .dsh-ag-ou-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .dsh-ag-ou-btn:active:not(:disabled) {
+          transform: scale(0.96);
+        }
+        .dsh-ag-ou-btn--check {
+          padding: 4px 10px;
+          font-weight: 600;
+          border: 1px solid rgba(56,189,248,0.42);
+          background: rgba(56,189,248,0.16);
+          color: #e0f2fe;
+        }
+        .dsh-ag-ou-btn--check:hover:not(:disabled) {
+          border-color: rgba(56,189,248,0.78);
+          background: rgba(56,189,248,0.28);
+          color: #ffffff;
+          box-shadow: 0 0 12px rgba(56,189,248,0.32);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--check[data-theme="light"] {
+          border-color: rgba(59,130,246,0.35);
+          background: rgba(241,247,255,0.92);
+          color: #1e3a8a;
+        }
+        .dsh-ag-ou-btn--check[data-theme="light"]:hover:not(:disabled) {
+          border-color: rgba(37,99,235,0.62);
+          background: rgba(219,234,254,0.96);
+          color: #1d4ed8;
+          box-shadow: 0 4px 12px rgba(59,130,246,0.22);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--summary {
+          padding: 3px 9px;
+          border: 1px solid rgba(148,163,184,0.28);
+          background: rgba(15,23,42,0.52);
+          color: #cbd5e1;
+        }
+        .dsh-ag-ou-btn--summary:hover:not(:disabled) {
+          border-color: rgba(56,189,248,0.55);
+          background: rgba(30,41,59,0.78);
+          color: #f8fafc;
+          box-shadow: 0 0 10px rgba(56,189,248,0.2);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--summary[data-theme="light"] {
+          border-color: rgba(15,23,42,0.16);
+          background: rgba(255,255,255,0.85);
+          color: #334155;
+        }
+        .dsh-ag-ou-btn--summary[data-theme="light"]:hover:not(:disabled) {
+          border-color: rgba(59,130,246,0.45);
+          background: rgba(239,246,255,0.95);
+          color: #0f172a;
+          box-shadow: 0 3px 10px rgba(59,130,246,0.16);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--primary {
+          padding: 4px 10px;
+          font-weight: 600;
+          border: none;
+          background: linear-gradient(135deg,#3b82f6,#7c3aed);
+          color: #ffffff;
+          box-shadow: 0 3px 10px rgba(99,102,241,0.28);
+        }
+        .dsh-ag-ou-btn--primary:hover:not(:disabled) {
+          filter: brightness(1.1);
+          box-shadow: 0 5px 14px rgba(99,102,241,0.44);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--copy {
+          padding: 2px 8px;
+          border-radius: 6px;
+          font-size: 11.5px;
+          font-weight: 600;
+          border: 1px solid rgba(56,189,248,0.45);
+          background: rgba(56,189,248,0.18);
+          color: #e0f2fe;
+        }
+        .dsh-ag-ou-btn--copy:hover:not(:disabled) {
+          border-color: rgba(56,189,248,0.8);
+          background: rgba(56,189,248,0.3);
+          color: #ffffff;
+          box-shadow: 0 0 10px rgba(56,189,248,0.28);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--copy[data-theme="light"] {
+          border-color: rgba(59,130,246,0.38);
+          background: rgba(219,234,254,0.9);
+          color: #1d4ed8;
+        }
+        .dsh-ag-ou-btn--copy[data-theme="light"]:hover:not(:disabled) {
+          border-color: rgba(37,99,235,0.68);
+          background: rgba(191,219,254,0.96);
+          color: #1e40af;
+          box-shadow: 0 3px 10px rgba(59,130,246,0.2);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-ou-btn--close {
+          padding: 2px 7px;
+          border-radius: 6px;
+          font-size: 11.5px;
+          border: 1px solid rgba(148,163,184,0.3);
+          background: transparent;
+          color: #cbd5e1;
+        }
+        .dsh-ag-ou-btn--close:hover:not(:disabled) {
+          border-color: rgba(148,163,184,0.62);
+          background: rgba(148,163,184,0.18);
+          color: #ffffff;
+        }
+        .dsh-ag-ou-btn--close[data-theme="light"] {
+          border-color: rgba(148,163,184,0.35);
+          color: #475569;
+        }
+        .dsh-ag-ou-btn--close[data-theme="light"]:hover:not(:disabled) {
+          border-color: rgba(100,116,139,0.55);
+          background: rgba(148,163,184,0.16);
+          color: #0f172a;
+        }
+      `;
+      document.head.appendChild(st);
+    }
+
+    function mountOfficialUpdaterBarIfVisible() {
+      if (config.pluginUpdaterPlacement !== 'both') {
+        removeOfficialUpdaterBar();
+        return;
+      }
+      const existingBar = document.getElementById(OFFICIAL_UPDATER_BAR_ID);
+      if (existingBar && existingBar.isConnected) {
+        // Ensure we are still on the official plugins view
+        const seatEl = existingBar._dshSeatEl;
+        if (seatEl && seatEl.isConnected) return;
+        removeOfficialUpdaterBar();
+      } else if (existingBar) {
+        removeOfficialUpdaterBar();
+      }
+
+      const found = findOfficialPluginsToolbarSeat();
+      if (!found || !found.seat) {
+        removeOfficialUpdaterPopup();
+        return;
+      }
+
+      const { seat, mode } = found;
+      const bar = document.createElement('div');
+      bar.id = OFFICIAL_UPDATER_BAR_ID;
+      bar._dshSeatEl = seat;
+
+      if (mode === 'head') {
+        const cs = window.getComputedStyle(seat);
+        if (cs.display !== 'flex' && cs.display !== 'inline-flex') {
+          seat.style.display = 'flex';
+          seat.style.alignItems = 'center';
+          seat.style.justifyContent = 'space-between';
+          seat.style.gap = '10px';
+          seat.style.flexWrap = 'wrap';
+        }
+        bar.style.cssText = 'display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto;position:relative;flex-shrink:0;z-index:25;font-size:12.5px;';
+      } else {
+        bar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 10px;padding:7px 11px;border-radius:10px;border:1px solid rgba(56,189,248,0.34);background:rgba(15,23,42,0.48);font-size:12.5px;position:relative;z-index:25;';
+      }
+
+      ensureOfficialUpdaterStyles();
+      const isLight = detectTheme() === 'light';
+      const themeTag = isLight ? 'light' : 'dark';
+
+      const checkBtn = document.createElement('button');
+      checkBtn.type = 'button';
+      checkBtn.textContent = '🔍 检查全部更新';
+      checkBtn.className = 'dsh-ag-ou-btn dsh-ag-ou-btn--check';
+      checkBtn.setAttribute('data-theme', themeTag);
+
+      const summaryBtn = document.createElement('button');
+      summaryBtn.type = 'button';
+      summaryBtn.className = 'dsh-ag-ou-btn dsh-ag-ou-btn--summary';
+      summaryBtn.setAttribute('data-theme', themeTag);
+      summaryBtn.style.display = 'none';
+
+      const updateAllBtn = document.createElement('button');
+      updateAllBtn.type = 'button';
+      updateAllBtn.className = 'dsh-ag-ou-btn dsh-ag-ou-btn--primary';
+      updateAllBtn.style.display = 'none';
+
+      let lastUpdatable = [];
+      let popupOpen = false;
+
+      const positionPopup = (pop) => {
+        if (!pop || !bar.isConnected) return;
+        const rect = bar.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+        const top = Math.min(window.innerHeight - 140, Math.max(12, Math.round(rect.bottom + 8)));
+        const right = Math.max(12, Math.round(window.innerWidth - rect.right));
+        const maxH = Math.max(160, Math.min(380, Math.round(window.innerHeight - top - 16)));
+        pop.style.top = `${top}px`;
+        pop.style.right = `${right}px`;
+        const bodyEl = pop.querySelector('[data-dsh-ag-popup-body="1"]');
+        if (bodyEl) bodyEl.style.maxHeight = `${Math.max(110, maxH - 48)}px`;
+      };
+
+      const renderPopup = () => {
+        removeOfficialUpdaterPopup();
+        if (!popupOpen || lastUpdatable.length === 0) return;
+
+        const darkMode = detectTheme() !== 'light';
+        const pop = document.createElement('div');
+        pop.id = OFFICIAL_UPDATER_POPUP_ID;
+        pop.style.cssText = [
+          'position:fixed',
+          'z-index:9999',
+          'min-width:250px',
+          'max-width:min(380px,82vw)',
+          'border-radius:12px',
+          `border:1px solid ${darkMode ? 'rgba(148,163,184,0.34)' : 'rgba(59,130,246,0.28)'}`,
+          `background:${darkMode ? 'rgba(30,41,59,0.86)' : 'rgba(248,250,252,0.94)'}`,
+          `color:${darkMode ? '#e2e8f0' : '#0f172a'}`,
+          'backdrop-filter:blur(16px) saturate(140%)',
+          '-webkit-backdrop-filter:blur(16px) saturate(140%)',
+          'box-shadow:0 12px 34px rgba(0,0,0,0.35)',
+          'padding:10px 12px',
+          'display:flex',
+          'flex-direction:column',
+          'gap:8px',
+          'user-select:text',
+          '-webkit-user-select:text'
+        ].join(';');
+
+        const headRow = document.createElement('div');
+        headRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.22);user-select:none;';
+
+        const headTitle = document.createElement('span');
+        headTitle.textContent = `可更新插件（${lastUpdatable.length}）`;
+        headTitle.style.cssText = 'font-size:12px;font-weight:700;';
+
+        const headActions = document.createElement('div');
+        headActions.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+        const copyText = formatUpdatableSummaryText(lastUpdatable);
+        const popThemeTag = darkMode ? 'dark' : 'light';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.textContent = '📋 一键复制';
+        copyBtn.className = 'dsh-ag-ou-btn dsh-ag-ou-btn--copy';
+        copyBtn.setAttribute('data-theme', popThemeTag);
+        copyBtn.onclick = async () => {
+          const ok = await copyTextToClipboard(copyText);
+          copyBtn.textContent = ok ? '✅ 已复制' : '复制失败';
+          setTimeout(() => { if (copyBtn.isConnected) copyBtn.textContent = '📋 一键复制'; }, 2000);
+        };
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '收起';
+        closeBtn.className = 'dsh-ag-ou-btn dsh-ag-ou-btn--close';
+        closeBtn.setAttribute('data-theme', popThemeTag);
+        closeBtn.onclick = () => {
+          popupOpen = false;
+          removeOfficialUpdaterPopup();
+        };
+
+        headActions.appendChild(copyBtn);
+        headActions.appendChild(closeBtn);
+        headRow.appendChild(headTitle);
+        headRow.appendChild(headActions);
+
+        const bodyEl = document.createElement('div');
+        bodyEl.setAttribute('data-dsh-ag-popup-body', '1');
+        bodyEl.style.cssText = [
+          'overflow-y:auto',
+          'user-select:text',
+          '-webkit-user-select:text',
+          'cursor:text',
+          'white-space:pre-wrap',
+          'word-break:break-word',
+          'font-size:13px',
+          'line-height:1.58',
+          `color:${darkMode ? '#bae6fd' : '#0f172a'}`
+        ].join(';');
+        bodyEl.textContent = copyText;
+
+        pop.appendChild(headRow);
+        pop.appendChild(bodyEl);
+        document.body.appendChild(pop);
+        positionPopup(pop);
+
+        const onReposition = () => {
+          if (!bar.isConnected || !seat.isConnected) {
+            removeOfficialUpdaterBar();
+            return;
+          }
+          positionPopup(pop);
+        };
+        window.addEventListener('resize', onReposition, true);
+        window.addEventListener('scroll', onReposition, true);
+        officialUpdaterRepositionCleanup = () => {
+          window.removeEventListener('resize', onReposition, true);
+          window.removeEventListener('scroll', onReposition, true);
+        };
+      };
+
+      summaryBtn.onclick = () => {
+        if (lastUpdatable.length === 0) return;
+        popupOpen = !popupOpen;
+        renderPopup();
+      };
+
+      checkBtn.onclick = async () => {
+        checkBtn.disabled = true;
+        checkBtn.textContent = '检查中...';
+        try {
+          const r = await fetch(`${API_BASE}/plugins/check?force=1`, { cache: 'no-store' });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '检查失败');
+          lastUpdatable = (d.plugins || []).filter((p) => p.updateInfo?.hasUpdate);
+          const actionable = lastUpdatable.filter((p) => p.sourceKind === 'npm' || p.sourceKind === 'github');
+          summaryBtn.style.display = 'inline-block';
+          if (lastUpdatable.length > 0) {
+            summaryBtn.textContent = `发现 ${lastUpdatable.length} 个新版本 ▾`;
+            popupOpen = true;
+            renderPopup();
+          } else {
+            summaryBtn.textContent = `全部 ${d.count} 个均已最新`;
+            popupOpen = false;
+            removeOfficialUpdaterPopup();
+          }
+          if (actionable.length > 0) {
+            updateAllBtn.style.display = 'inline-block';
+            updateAllBtn.textContent = `⬆️ 全部更新（${actionable.length}）`;
+          } else {
+            updateAllBtn.style.display = 'none';
+          }
+        } catch (err) {
+          summaryBtn.style.display = 'inline-block';
+          summaryBtn.textContent = `检查失败：${err?.message || err}`;
+        } finally {
+          checkBtn.disabled = false;
+          checkBtn.textContent = '🔍 检查全部更新';
+        }
+      };
+
+      updateAllBtn.onclick = async () => {
+        const targets = lastUpdatable.filter((p) => p.sourceKind === 'npm' || p.sourceKind === 'github');
+        if (targets.length === 0) return;
+        updateAllBtn.disabled = true;
+        checkBtn.disabled = true;
+        let done = 0;
+        for (const p of targets) {
+          updateAllBtn.textContent = `更新中 ${done + 1}/${targets.length}...`;
+          try {
+            const ur = await fetch(`${API_BASE}/plugins/update`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: p.name })
+            });
+            const ud = await ur.json();
+            if (ud?.ok) done++;
+          } catch {}
+        }
+        updateAllBtn.disabled = false;
+        checkBtn.disabled = false;
+        updateAllBtn.textContent = `✅ 已更新 ${done}/${targets.length}（重启生效）`;
+        summaryBtn.textContent = `请重启 DSH 使新版本生效`;
+      };
+
+      bar.appendChild(checkBtn);
+      bar.appendChild(summaryBtn);
+      bar.appendChild(updateAllBtn);
+
+      if (mode === 'head') {
+        seat.appendChild(bar);
+      } else if (mode === 'prepend') {
+        seat.prepend(bar);
+      } else {
+        seat.insertAdjacentElement('afterend', bar);
+      }
+    }
+
+    function syncOfficialPluginUpdaterBar() {
+      if (config.pluginUpdaterPlacement !== 'both') {
+        if (officialUpdaterObs) { try { officialUpdaterObs.disconnect(); } catch {} officialUpdaterObs = null; }
+        removeOfficialUpdaterBar();
+        return;
+      }
+      if (!officialUpdaterObs && typeof MutationObserver === 'function' && document.body) {
+        officialUpdaterObs = new MutationObserver(() => {
+          if (officialUpdaterTimer) clearTimeout(officialUpdaterTimer);
+          officialUpdaterTimer = setTimeout(mountOfficialUpdaterBarIfVisible, 220);
+        });
+        officialUpdaterObs.observe(document.body, { childList: true, subtree: true });
+      }
+      mountOfficialUpdaterBarIfVisible();
+    }
+
     function applyAll() {
       startWeCompatObserver();
       applyVisualStyles();
@@ -6389,6 +7148,9 @@ window.__ModuleLoader__.load({
       scheduleVirtualize();
       syncSessionKeepAlivePolicy();
       syncComposerIsland();
+      void applyActiveSkin();
+      syncMermaidEngine();
+      syncOfficialPluginUpdaterBar();
     }
 
     // -----------------------------------------------------------------------
@@ -6410,10 +7172,12 @@ window.__ModuleLoader__.load({
     const TABS = [
       { id: 'perf', label: '⚡ 性能引擎' },
       { id: 'wallpaper', label: '🖼️ 壁纸视差' },
+      { id: 'skins', label: '🎭 皮肤工坊' },
       { id: 'glass', label: '🪟 玻璃质感' },
       { id: 'color', label: '🎨 色彩排版' },
       { id: 'layout', label: '📑 Antigravity布局' },
       { id: 'fx', label: '✨ 特效头像' },
+      { id: 'plugins', label: '🔌 插件更新' },
       { id: 'css', label: '🧩 自定义 CSS' }
     ];
 
@@ -8378,8 +9142,27 @@ window.__ModuleLoader__.load({
                 '毛玻璃质感',
                 'weControlGlass',
                 '当前由苍蓝琉璃控制分区毛玻璃，已自动屏蔽 Wallpaper Engine 的叠加玻璃样式。',
-                '当前毛玻璃质感由 Wallpaper Engine 插件控制，下方设置已暂停并变灰。'
+                '当前毛玻璃质感由 Wallpaper Engine 控制，下方设置已暂停并变灰。'
               ),
+              jsxs('div', {
+                className: 'dsh-sg-card',
+                children: [
+                  jsx('h4', { children: '对话输入框（独立控制）' }),
+                  renderWeCompatSwitch(
+                    '对话输入框',
+                    'weControlComposer',
+                    '当前由苍蓝琉璃控制对话输入框，已主动屏蔽 Wallpaper Engine 对对话框的样式与按钮改色。',
+                    '当前对话输入框由 Wallpaper Engine 控制，苍蓝琉璃已放行对方对对话框的修改，下方设置已暂停并变灰。'
+                  ),
+                  jsxs('div', {
+                    className: (weCompat.installed && cfg.weControlComposer === false) ? 'dsh-sg-compat-dimmed' : '',
+                    children: [
+                      rangeRow('主输入框不透明度', 'glassComposerOpacity', 0.05, 0.98, 0.02, ''),
+                      rangeRow('主输入框模糊半径', 'glassComposerBlurPx', 0, 32, 1, 'px')
+                    ]
+                  })
+                ]
+              }),
               jsxs('div', {
                 className: (weCompat.installed && cfg.weControlGlass === false) ? 'dsh-sg-compat-dimmed' : '',
                 children: [
@@ -8467,14 +9250,6 @@ window.__ModuleLoader__.load({
                   rangeRow('右侧栏背景不透明度', 'glassRightSidebarOpacity', 0, 0.98, 0.02, ''),
                   rangeRow('左侧栏 / 右侧栏模糊半径', 'glassBlurPx', 0, 32, 1, 'px'),
                   rangeRow('聊天主区背景不透明度', 'glassChatBgOpacity', 0, 0.98, 0.02, '')
-                ]
-              }),
-              jsxs('div', {
-                className: 'dsh-sg-card',
-                children: [
-                  jsx('h4', { children: '主输入框' }),
-                  rangeRow('主输入框不透明度', 'glassComposerOpacity', 0.05, 0.98, 0.02, ''),
-                  rangeRow('主输入框模糊半径', 'glassComposerBlurPx', 0, 32, 1, 'px')
                 ]
               }),
               jsxs('div', {
@@ -8713,6 +9488,7 @@ window.__ModuleLoader__.load({
                   rangeRow('轨道最近圆点数', 'anchorRecentDots', 6, 28, 1, ' 个'),
                   rangeRow('早期轮次合并粒度', 'anchorMergeChunk', 10, 40, 5, ' 条/组'),
                   toggleRow('启用Antigravity风清爽排版', '优化长文本行高、代码块圆角与柔和边框', 'antigravityLayout'),
+                  toggleRow('启用 Mermaid 图示渲染', '自动将对话与文档预览中的 mermaid 代码块原地渲染为 SVG 图示，跟随深浅色重绘', 'mermaidEnabled'),
                   rangeRow('聊天内容最大宽度（0=不限）', 'chatMaxWidthPx', 0, 1400, 40, 'px'),
                   toggleRow('自动折叠超长代码块', '超出阈值高度的代码块默认折叠，点击可展开', 'compactCodeEnabled'),
                   rangeRow('代码块折叠阈值', 'compactMaxHeightPx', 180, 720, 20, 'px'),
@@ -9075,6 +9851,18 @@ window.__ModuleLoader__.load({
             ]
           }) : null,
 
+          activeTab === 'skins' ? jsx(SkinWorkshopTab, {
+            cfg,
+            weCompat,
+            updateConfig,
+            toggleRow
+          }) : null,
+
+          activeTab === 'plugins' ? jsx(PluginManagerTab, {
+            cfg,
+            updateConfig
+          }) : null,
+
           activeTab === 'css' ? jsxs('div', {
             className: 'dsh-sg-card',
             children: [
@@ -9134,6 +9922,855 @@ window.__ModuleLoader__.load({
                 onClick: () => updateConfig({ ...DEFAULT_CONFIG, savedPresets: cfg.savedPresets || [], customCss: cfg.customCss || '', studioUiTheme: cfg.studioUiTheme || DEFAULT_CONFIG.studioUiTheme, savedUserAvatars: cfg.savedUserAvatars || [], savedAssistantAvatars: cfg.savedAssistantAvatars || [] }, true),
                 children: '恢复全部默认设置'
               })
+            ]
+          })
+        ]
+      });
+    }
+
+    function SkinWorkshopTab({ cfg, weCompat, updateConfig, toggleRow }) {
+      const [loading, setLoading] = React.useState(true);
+      const [localSkins, setLocalSkins] = React.useState([]);
+      const [catalog, setCatalog] = React.useState([]);
+      const [sites, setSites] = React.useState([]);
+      const [statusMsg, setStatusMsg] = React.useState('');
+      const [busyId, setBusyId] = React.useState('');
+      const [confirmDeleteId, setConfirmDeleteId] = React.useState('');
+      const zipInputRef = React.useRef(null);
+
+      const refreshSkins = React.useCallback(async () => {
+        setLoading(true);
+        try {
+          const r = await fetch(`${API_BASE}/skins/list`, { cache: 'no-store' });
+          const d = await r.json();
+          if (d?.ok) {
+            setLocalSkins(Array.isArray(d.local) ? d.local : []);
+            setCatalog(Array.isArray(d.catalog) ? d.catalog : []);
+            setSites(Array.isArray(d.sites) ? d.sites : []);
+          }
+        } catch (err) {
+          setStatusMsg(`加载皮肤列表失败：${err?.message || err}`);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      React.useEffect(() => { void refreshSkins(); }, [refreshSkins]);
+
+      const onApplySkin = (id) => {
+        const nextId = cfg.activeSkinId === id ? '' : id;
+        updateConfig({ activeSkinId: nextId }, true);
+        setStatusMsg(nextId ? `已切换皮肤：${nextId}` : '已还原为苍蓝琉璃自调风格');
+      };
+
+      const onDeleteLocal = async (id) => {
+        setBusyId(id);
+        try {
+          const r = await fetch(`${API_BASE}/skins/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '删除失败');
+          if (cfg.activeSkinId === id) updateConfig({ activeSkinId: '' }, true);
+          setConfirmDeleteId('');
+          await refreshSkins();
+          setStatusMsg(`已删除本地皮肤：${id}`);
+        } catch (err) {
+          setStatusMsg(`删除失败：${err?.message || err}`);
+        } finally {
+          setBusyId('');
+        }
+      };
+
+      const onImportZip = (e) => {
+        const file = e.target?.files?.[0];
+        if (e.target) e.target.value = '';
+        if (!file) return;
+        setBusyId('__import__');
+        setStatusMsg('正在校验并安全导入皮肤包（已自动忽略任意可执行脚本）...');
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const r = await fetch(`${API_BASE}/skins/import`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dataUrl: String(reader.result || ''), name: file.name })
+            });
+            const d = await r.json();
+            if (!d?.ok) throw new Error(d?.error || '导入失败');
+            await refreshSkins();
+            updateConfig({ activeSkinId: d.id }, true);
+            setStatusMsg(`已导入并启用皮肤「${d.name || d.id}」`);
+          } catch (err) {
+            setStatusMsg(`导入失败：${err?.message || err}`);
+          } finally {
+            setBusyId('');
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const isDark = detectTheme() === 'dark';
+
+      return jsxs('div', {
+        children: [
+          weCompat.wallpaperActive ? jsxs('div', {
+            className: 'dsh-sg-compat-bar',
+            'data-mode': 'we',
+            style: { marginBottom: '10px' },
+            children: [
+              jsx('div', { className: 'dsh-sg-compat-head', children: jsx('span', { className: 'dsh-sg-compat-title', children: '🤝 Wallpaper Engine 壁纸运行中 · 皮肤壁纸层已自动让位' }) }),
+              jsx('div', { className: 'dsh-sg-compat-desc', children: '当前优先保证 Wallpaper Engine 动态壁纸透出；开启下方选项后，使用创意工坊皮肤时仅应用其配色与 UI 风格，自动剥离皮肤自带壁纸。' })
+            ]
+          }) : null,
+
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsxs('div', {
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+                children: [
+                  jsx('h4', { style: { margin: 0 }, children: '🎭 皮肤创意工坊（仅皮肤主题）' }),
+                  jsxs('div', {
+                    style: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+                    children: [
+                      cfg.activeSkinId ? jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        onClick: () => updateConfig({ activeSkinId: '' }, true),
+                        children: '还原苍蓝琉璃风格'
+                      }) : null,
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        disabled: busyId === '__import__',
+                        onClick: () => zipInputRef.current?.click(),
+                        children: busyId === '__import__' ? '导入中...' : '📦 导入 v2 皮肤 (.zip)'
+                      }),
+                      jsx('input', {
+                        ref: zipInputRef,
+                        type: 'file',
+                        accept: '.zip',
+                        style: { display: 'none' },
+                        onChange: onImportZip
+                      })
+                    ]
+                  })
+                ]
+              }),
+              jsx('div', {
+                className: 'dsh-sg-sub',
+                style: { marginTop: '6px' },
+                children: cfg.activeSkinId
+                  ? `当前生效皮肤：${cfg.activeSkinId}（导入时自动过滤可执行脚本，仅安全加载样式与本地素材）`
+                  : '当前使用苍蓝琉璃自调风格；下方可一键启用本地皮肤、精选主题，或导入从 dsh-market.com 下载的标准 v2 皮肤包。'
+              }),
+              toggleRow('Wallpaper Engine 运行时自动让位壁纸', '检测到 Wallpaper Engine 壁纸运行中时，自动剥离皮肤自带壁纸层，优先展示 WE 动态壁纸', 'skinRespectWe'),
+              statusMsg ? jsx('div', {
+                style: { marginTop: '6px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(56,189,248,0.12)', fontSize: '12px' },
+                children: statusMsg
+              }) : null
+            ]
+          }),
+
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsxs('div', {
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' },
+                children: [
+                  jsx('h4', { style: { margin: 0 }, children: `本地皮肤库（${localSkins.length}）` }),
+                  jsx('button', { type: 'button', className: 'dsh-sg-btn', onClick: () => void refreshSkins(), children: loading ? '刷新中...' : '刷新列表' })
+                ]
+              }),
+              localSkins.length === 0 ? jsx('div', {
+                className: 'dsh-sg-sub',
+                children: '本地 ~/.dsh/skins 暂无外部皮肤，可直接应用下方内置精选主题，或导入 v2 皮肤包。'
+              }) : jsx('div', {
+                style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '10px' },
+                children: localSkins.map((s) => {
+                  const active = cfg.activeSkinId === s.id;
+                  const preview = isDark ? (s.previewDark || s.previewLight) : (s.previewLight || s.previewDark);
+                  return jsxs('div', {
+                    key: s.id,
+                    style: {
+                      borderRadius: '10px',
+                      border: active ? `1.5px solid ${s.accent || '#38bdf8'}` : '1px solid rgba(148,163,184,0.22)',
+                      background: active ? 'rgba(56,189,248,0.10)' : 'rgba(15,23,42,0.25)',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    },
+                    children: [
+                      preview ? jsx('div', {
+                        style: {
+                          height: '84px',
+                          backgroundImage: `url("${preview}")`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          borderBottom: '1px solid rgba(148,163,184,0.16)'
+                        }
+                      }) : jsx('div', {
+                        style: {
+                          height: '28px',
+                          background: `linear-gradient(120deg, ${s.accent || '#38bdf8'}55, rgba(15,23,42,0.5))`,
+                          borderBottom: '1px solid rgba(148,163,184,0.16)'
+                        }
+                      }),
+                      jsxs('div', {
+                        style: { padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 },
+                        children: [
+                          jsxs('div', {
+                            style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' },
+                            children: [
+                              jsx('strong', { style: { fontSize: '12.5px' }, children: s.name }),
+                              jsx('span', { style: { fontSize: '10.5px', opacity: 0.7 }, children: `v${s.version}` })
+                            ]
+                          }),
+                          jsx('div', { className: 'dsh-sg-sub', style: { fontSize: '11px', lineHeight: 1.4 }, children: s.tagline || s.author }),
+                          jsxs('div', {
+                            style: { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '6px' },
+                            children: [
+                              jsx('button', {
+                                type: 'button',
+                                className: 'dsh-sg-btn',
+                                'data-active': active ? '1' : '0',
+                                style: { flex: 1 },
+                                onClick: () => onApplySkin(s.id),
+                                children: active ? '使用中（点击还原）' : '应用皮肤'
+                              }),
+                              confirmDeleteId === s.id ? jsx('button', {
+                                type: 'button',
+                                className: 'dsh-sg-btn',
+                                style: { borderColor: '#f87171', color: '#fca5a5' },
+                                disabled: busyId === s.id,
+                                onClick: () => void onDeleteLocal(s.id),
+                                children: '确认删'
+                              }) : jsx('button', {
+                                type: 'button',
+                                className: 'dsh-sg-btn',
+                                title: '删除此本地皮肤',
+                                'aria-label': '删除此本地皮肤',
+                                style: { padding: '4px 7px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+                                onClick: () => setConfirmDeleteId(s.id),
+                                children: jsxs('svg', {
+                                  width: 14,
+                                  height: 14,
+                                  viewBox: '0 0 24 24',
+                                  fill: 'none',
+                                  stroke: 'currentColor',
+                                  strokeWidth: 2,
+                                  strokeLinecap: 'round',
+                                  strokeLinejoin: 'round',
+                                  children: [
+                                    jsx('polyline', { points: '3 6 5 6 21 6' }),
+                                    jsx('path', { d: 'M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6' }),
+                                    jsx('path', { d: 'M10 11v6' }),
+                                    jsx('path', { d: 'M14 11v6' }),
+                                    jsx('path', { d: 'M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2' })
+                                  ]
+                                })
+                              })
+                            ]
+                          })
+                        ]
+                      })
+                    ]
+                  });
+                })
+              })
+            ]
+          }),
+
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '✨ 精选主题皮肤目录（零依赖昼夜双色 · 一键应用）' }),
+              jsx('div', {
+                style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '8px', marginTop: '8px' },
+                children: catalog.map((item) => {
+                  const active = cfg.activeSkinId === item.id;
+                  return jsxs('div', {
+                    key: item.id,
+                    style: {
+                      padding: '9px 10px',
+                      borderRadius: '10px',
+                      border: active ? `1.5px solid ${item.accent}` : '1px solid rgba(148,163,184,0.22)',
+                      background: active ? 'rgba(56,189,248,0.10)' : 'rgba(15,23,42,0.22)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '5px'
+                    },
+                    children: [
+                      jsxs('div', {
+                        style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' },
+                        children: [
+                          jsx('strong', { style: { fontSize: '12.5px' }, children: item.name }),
+                          jsx('div', {
+                            style: { display: 'flex', gap: '3px' },
+                            children: (item.swatches || []).map((c, idx) => jsx('span', {
+                              key: idx,
+                              style: { width: '10px', height: '10px', borderRadius: '999px', background: c, border: '1px solid rgba(255,255,255,0.25)' }
+                            }))
+                          })
+                        ]
+                      }),
+                      jsx('div', { className: 'dsh-sg-sub', style: { fontSize: '11px', lineHeight: 1.4 }, children: item.tagline }),
+                      jsxs('div', {
+                        style: { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '4px' },
+                        children: [
+                          jsx('button', {
+                            type: 'button',
+                            className: 'dsh-sg-btn',
+                            'data-active': active ? '1' : '0',
+                            style: { flex: 1 },
+                            onClick: () => onApplySkin(item.id),
+                            children: active ? '使用中（点击还原）' : '应用皮肤'
+                          })
+                        ]
+                      })
+                    ]
+                  });
+                })
+              })
+            ]
+          }),
+
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '🌐 互联网 DSH 皮肤分享站收录' }),
+              jsx('div', { className: 'dsh-sg-sub', style: { marginBottom: '8px' }, children: '可在以下专门的 DSH 皮肤站浏览更多社区皮肤，下载 v2 皮肤压缩包后点击上方「导入 v2 皮肤 (.zip)」即可直接启用：' }),
+              jsx('div', {
+                style: { display: 'flex', flexDirection: 'column', gap: '6px' },
+                children: sites.map((site) => jsxs('a', {
+                  key: site.id,
+                  href: site.url,
+                  target: '_blank',
+                  rel: 'noreferrer',
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148,163,184,0.2)',
+                    background: 'rgba(15,23,42,0.2)',
+                    textDecoration: 'none',
+                    color: 'inherit'
+                  },
+                  children: [
+                    jsx('strong', { style: { fontSize: '12.5px', color: '#7dd3fc' }, children: `${site.name} ↗` }),
+                    jsx('span', { className: 'dsh-sg-sub', style: { fontSize: '11px' }, children: site.desc })
+                  ]
+                }))
+              })
+            ]
+          })
+        ]
+      });
+    }
+
+    function PluginManagerTab({ cfg, updateConfig }) {
+      const [plugins, setPlugins] = React.useState([]);
+      const [profileName, setProfileName] = React.useState('');
+      const [loading, setLoading] = React.useState(true);
+      const [checking, setChecking] = React.useState(false);
+      const [updatingAll, setUpdatingAll] = React.useState(false);
+      const [busyMap, setBusyMap] = React.useState({});
+      const [query, setQuery] = React.useState('');
+      const [statusMsg, setStatusMsg] = React.useState('');
+      const [summaryOpen, setSummaryOpen] = React.useState(false);
+      const [copied, setCopied] = React.useState(false);
+      const copyTimerRef = React.useRef(null);
+
+      const loadList = React.useCallback(async () => {
+        setLoading(true);
+        try {
+          const r = await fetch(`${API_BASE}/plugins/list`, { cache: 'no-store' });
+          const d = await r.json();
+          if (d?.ok) {
+            setPlugins(Array.isArray(d.plugins) ? d.plugins : []);
+            setProfileName(d.profileName || '');
+          }
+        } catch (err) {
+          setStatusMsg(`读取插件列表失败：${err?.message || err}`);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      React.useEffect(() => { void loadList(); }, [loadList]);
+
+      const onCheckAll = async (force = true) => {
+        setChecking(true);
+        setStatusMsg('正在并发检查所有已装第三方插件的最新版本（npm / GitHub）...');
+        try {
+          const r = await fetch(`${API_BASE}/plugins/check?force=${force ? '1' : '0'}`, { cache: 'no-store' });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '检查失败');
+          const list = Array.isArray(d.plugins) ? d.plugins : [];
+          setPlugins(list);
+          const updatable = list.filter((p) => p.updateInfo?.hasUpdate).length;
+          setSummaryOpen(updatable > 0);
+          setStatusMsg(updatable > 0 ? `检查完成：发现 ${updatable} 个插件有新版本~` : `检查完成：全部 ${list.length} 个第三方插件均已是最新版本~`);
+        } catch (err) {
+          setStatusMsg(`检查更新失败：${err?.message || err}`);
+        } finally {
+          setChecking(false);
+        }
+      };
+
+      const onTogglePlugin = async (p) => {
+        setBusyMap((m) => ({ ...m, [p.name]: 'toggle' }));
+        try {
+          const r = await fetch(`${API_BASE}/plugins/toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: p.name, enabled: !p.enabled })
+          });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '切换失败');
+          await loadList();
+          setStatusMsg(`已${!p.enabled ? '启用' : '停用'} ${p.name}${d.needsRestart ? '（重启 DSH 后生效）' : ''}`);
+        } catch (err) {
+          setStatusMsg(`操作失败：${err?.message || err}`);
+        } finally {
+          setBusyMap((m) => { const n = { ...m }; delete n[p.name]; return n; });
+        }
+      };
+
+      const onUpdateOne = async (p) => {
+        setBusyMap((m) => ({ ...m, [p.name]: 'update' }));
+        setStatusMsg(`正在更新 ${p.name}...`);
+        try {
+          const r = await fetch(`${API_BASE}/plugins/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: p.name })
+          });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '更新失败');
+          await loadList();
+          setStatusMsg(`✅ ${p.name} 已更新完成，重启 DSH 后生效~`);
+        } catch (err) {
+          setStatusMsg(`更新 ${p.name} 失败：${err?.message || err}`);
+        } finally {
+          setBusyMap((m) => { const n = { ...m }; delete n[p.name]; return n; });
+        }
+      };
+
+      const allUpdatableList = plugins.filter((p) => p.updateInfo?.hasUpdate);
+      const updatableList = allUpdatableList.filter((p) => p.sourceKind === 'npm' || p.sourceKind === 'github');
+      const summaryText = React.useMemo(() => formatUpdatableSummaryText(allUpdatableList), [allUpdatableList]);
+
+      const onCopySummary = async () => {
+        if (!summaryText) return;
+        const ok = await copyTextToClipboard(summaryText);
+        if (!ok) {
+          setStatusMsg('自动复制失败，可直接在下方卡片中手动框选复制文本');
+          return;
+        }
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+      };
+
+      const onUpdateAll = async () => {
+        if (updatableList.length === 0) return;
+        setUpdatingAll(true);
+        let okCount = 0;
+        for (const p of updatableList) {
+          setStatusMsg(`批量更新中（${okCount + 1}/${updatableList.length}）：${p.name}...`);
+          try {
+            const r = await fetch(`${API_BASE}/plugins/update`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: p.name })
+            });
+            const d = await r.json();
+            if (d?.ok) okCount++;
+          } catch {}
+        }
+        await loadList();
+        setUpdatingAll(false);
+        setStatusMsg(`批量更新结束：成功 ${okCount}/${updatableList.length} 个，重启 DSH 后全部生效~`);
+      };
+
+      const filtered = plugins.filter((p) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return true;
+        return p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q);
+      });
+
+      const placement = cfg.pluginUpdaterPlacement === 'glass-only' ? 'glass-only' : 'both';
+
+      return jsxs('div', {
+        children: [
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '🔌 插件更新入口位置' }),
+              jsxs('div', {
+                className: 'dsh-sg-row',
+                children: [
+                  jsxs('div', {
+                    children: [
+                      jsx('label', { children: '快捷更新条显示范围' }),
+                      jsx('div', { className: 'dsh-sg-sub', children: '自由选择在「苍蓝琉璃内 + 官方插件页」双端显示，或仅保留在苍蓝琉璃工坊内' })
+                    ]
+                  }),
+                  jsxs('div', {
+                    className: 'dsh-sg-chips',
+                    children: [
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        'data-active': placement === 'both' ? '1' : '0',
+                        onClick: () => updateConfig({ pluginUpdaterPlacement: 'both' }, true),
+                        children: '双端显示（琉璃 + 官方页）'
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        'data-active': placement === 'glass-only' ? '1' : '0',
+                        onClick: () => updateConfig({ pluginUpdaterPlacement: 'glass-only' }, true),
+                        children: '仅留在苍蓝琉璃内'
+                      })
+                    ]
+                  })
+                ]
+              })
+            ]
+          }),
+
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsxs('div', {
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+                children: [
+                  jsx('h4', { style: { margin: 0 }, children: `已装第三方插件（${plugins.length}${profileName ? ` · ${profileName}` : ''}）` }),
+                  jsxs('div', {
+                    style: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+                    children: [
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        disabled: checking || updatingAll,
+                        onClick: () => void onCheckAll(true),
+                        children: checking ? '检查中...' : '🔍 检查全部更新'
+                      }),
+                      updatableList.length > 0 ? jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        'data-active': '1',
+                        disabled: updatingAll || checking,
+                        onClick: () => void onUpdateAll(),
+                        children: updatingAll ? '批量更新中...' : `⬆️ 全部更新（${updatableList.length}）`
+                      }) : null
+                    ]
+                  })
+                ]
+              }),
+              jsx('input', {
+                type: 'text',
+                value: query,
+                onChange: (e) => setQuery(e.target.value),
+                placeholder: '搜索插件包名或描述...',
+                style: {
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '6px 10px',
+                  boxSizing: 'border-box',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(148,163,184,0.28)',
+                  background: 'rgba(15,23,42,0.35)',
+                  color: 'inherit',
+                  fontSize: '12px'
+                }
+              }),
+              (statusMsg || allUpdatableList.length > 0) ? jsxs('div', {
+                style: {
+                  marginTop: '8px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  background: 'rgba(56,189,248,0.12)',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                  flexWrap: 'wrap'
+                },
+                children: [
+                  jsx('span', { children: statusMsg || `已有最近检查结果：${allUpdatableList.length} 个插件有新版本` }),
+                  allUpdatableList.length > 0 ? jsx('button', {
+                    type: 'button',
+                    className: 'dsh-sg-btn',
+                    style: { padding: '2px 8px', fontSize: '11px' },
+                    onClick: () => setSummaryOpen((v) => !v),
+                    children: summaryOpen ? '收起清单卡 ▲' : `展开清单卡（${allUpdatableList.length}）▾`
+                  }) : null
+                ]
+              }) : null,
+              summaryOpen && allUpdatableList.length > 0 ? jsxs('div', {
+                style: {
+                  marginTop: '8px',
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(56,189,248,0.36)',
+                  background: detectTheme() === 'light' ? 'rgba(248,250,252,0.92)' : 'rgba(15,23,42,0.68)',
+                  backdropFilter: 'blur(14px) saturate(135%)',
+                  WebkitBackdropFilter: 'blur(14px) saturate(135%)',
+                  boxShadow: '0 8px 26px rgba(0,0,0,0.22)'
+                },
+                children: [
+                  jsxs('div', {
+                    style: {
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      marginBottom: '6px',
+                      paddingBottom: '6px',
+                      borderBottom: '1px solid rgba(148,163,184,0.2)'
+                    },
+                    children: [
+                      jsx('strong', { style: { fontSize: '12px' }, children: `📦 可更新版本清单（${allUpdatableList.length}）` }),
+                      jsxs('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: '6px' },
+                        children: [
+                          jsx('button', {
+                            type: 'button',
+                            className: 'dsh-sg-btn',
+                            'data-active': copied ? '1' : '0',
+                            style: { padding: '3px 9px', fontSize: '11.5px' },
+                            onClick: () => void onCopySummary(),
+                            children: copied ? '✅ 已复制' : '📋 一键复制'
+                          }),
+                          jsx('button', {
+                            type: 'button',
+                            className: 'dsh-sg-btn',
+                            style: { padding: '3px 8px', fontSize: '11.5px' },
+                            onClick: () => setSummaryOpen(false),
+                            children: '收起'
+                          })
+                        ]
+                      })
+                    ]
+                  }),
+                  jsx('div', {
+                    style: {
+                      userSelect: 'text',
+                      WebkitUserSelect: 'text',
+                      cursor: 'text',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontSize: '12.5px',
+                      lineHeight: 1.58,
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      color: detectTheme() === 'light' ? '#0f172a' : '#bae6fd'
+                    },
+                    children: summaryText
+                  })
+                ]
+              }) : null,
+              loading ? jsx('div', { className: 'dsh-sg-sub', style: { marginTop: '10px' }, children: '读取插件列表中...' }) : jsx('div', {
+                style: { display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', maxHeight: '420px', overflowY: 'auto' },
+                children: filtered.map((p) => {
+                  const u = p.updateInfo;
+                  const busy = busyMap[p.name];
+                  const sourceTag = p.sourceKind === 'npm' ? 'npm' : (p.sourceKind === 'github' ? 'GitHub' : (p.sourceKind === 'local-link' ? '本地链接' : '离线包'));
+                  return jsxs('div', {
+                    key: p.name,
+                    style: {
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: u?.hasUpdate ? '1px solid rgba(56,189,248,0.48)' : '1px solid rgba(148,163,184,0.18)',
+                      background: p.enabled ? 'rgba(15,23,42,0.26)' : 'rgba(15,23,42,0.12)',
+                      opacity: p.enabled ? 1 : 0.65
+                    },
+                    children: [
+                      jsxs('div', {
+                        style: { minWidth: 0, flex: 1 },
+                        children: [
+                          jsxs('div', {
+                            style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
+                            children: [
+                              jsx('strong', { style: { fontSize: '12.5px', wordBreak: 'break-all' }, children: p.name }),
+                              jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(148,163,184,0.2)' }, children: `v${p.installedVersion}` }),
+                              jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(56,189,248,0.15)', color: '#7dd3fc' }, children: sourceTag }),
+                              u?.hasUpdate ? jsx('span', {
+                                style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(34,197,94,0.2)', color: '#86efac', fontWeight: 600 },
+                                children: `新版本 v${u.latestVersion}`
+                              }) : null,
+                              u?.requiresDsh ? jsx('span', { style: { fontSize: '10.5px', opacity: 0.72 }, children: `需 DSH ${u.requiresDsh}` }) : null
+                            ]
+                          }),
+                          p.description ? jsx('div', { className: 'dsh-sg-sub', style: { fontSize: '11px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: p.description }) : null
+                        ]
+                      }),
+                      jsxs('div', {
+                        style: { display: 'flex', gap: '6px', flexShrink: 0 },
+                        children: [
+                          u?.hasUpdate && (p.sourceKind === 'npm' || p.sourceKind === 'github') ? jsx('button', {
+                            type: 'button',
+                            className: 'dsh-sg-btn',
+                            'data-active': '1',
+                            disabled: Boolean(busy) || updatingAll,
+                            onClick: () => void onUpdateOne(p),
+                            children: busy === 'update' ? '更新中...' : '更新'
+                          }) : null,
+                          !p.isSelf ? jsx('button', {
+                            type: 'button',
+                            className: 'dsh-sg-btn dsh-sg-power-btn',
+                            'data-enabled': p.enabled ? '1' : '0',
+                            disabled: Boolean(busy),
+                            title: p.enabled ? '当前已启用（点击停用）' : '当前已停用（点击启用）',
+                            'aria-label': p.enabled ? '停用插件' : '启用插件',
+                            onClick: () => void onTogglePlugin(p),
+                            children: busy === 'toggle'
+                              ? jsx('span', { style: { fontSize: '11px', lineHeight: 1 }, children: '…' })
+                              : jsxs('svg', {
+                                width: 15,
+                                height: 15,
+                                viewBox: '0 0 24 24',
+                                fill: 'none',
+                                stroke: 'currentColor',
+                                strokeWidth: 2.1,
+                                strokeLinecap: 'round',
+                                strokeLinejoin: 'round',
+                                children: [
+                                  jsx('path', { d: 'M18.36 6.64a9 9 0 1 1-12.73 0' }),
+                                  jsx('line', { x1: 12, y1: 2, x2: 12, y2: 12 }),
+                                  !p.enabled ? jsx('line', { x1: 4, y1: 4, x2: 20, y2: 20, strokeWidth: 2 }) : null
+                                ]
+                              })
+                          }) : null
+                        ]
+                      })
+                    ]
+                  });
+                })
+              })
+            ]
+          })
+        ]
+      });
+    }
+
+    function PluginDetailUpdateSection(props) {
+      const { config: cfg } = useStore();
+      const [checking, setChecking] = React.useState(false);
+      const [updating, setUpdating] = React.useState(false);
+      const [item, setItem] = React.useState(null);
+      const [msg, setMsg] = React.useState('');
+
+      const pkgName = props?.subject?.kind === 'bundle' ? props?.subject?.pkg?.name : '';
+      const installed = Boolean(props?.subject?.kind === 'bundle' && props?.subject?.pkg?.installed);
+      if (cfg.pluginUpdaterPlacement === 'glass-only' || !installed || !pkgName || pkgName.startsWith('@deepseek-ai/')) {
+        return null;
+      }
+
+      const onCheckThis = async () => {
+        setChecking(true);
+        setMsg('');
+        try {
+          const r = await fetch(`${API_BASE}/plugins/check?force=1`, { cache: 'no-store' });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '检查失败');
+          const found = (d.plugins || []).find((p) => p.name === pkgName) || null;
+          setItem(found);
+          if (!found) {
+            setMsg('未在第三方依赖列表找到该插件');
+          } else if (found.updateInfo?.hasUpdate) {
+            setMsg(`发现新版本：${found.installedVersion} → ${found.updateInfo.latestVersion}`);
+          } else {
+            setMsg(`已是最新版本（${found.installedVersion || '?'}）`);
+          }
+        } catch (err) {
+          setMsg(`检查失败：${err?.message || err}`);
+        } finally {
+          setChecking(false);
+        }
+      };
+
+      const onUpdateThis = async () => {
+        if (!item) return;
+        setUpdating(true);
+        try {
+          const r = await fetch(`${API_BASE}/plugins/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: pkgName })
+          });
+          const d = await r.json();
+          if (!d?.ok) throw new Error(d?.error || '更新失败');
+          setMsg('✅ 已更新完成，重启 DSH 后生效');
+        } catch (err) {
+          setMsg(`更新失败：${err?.message || err}`);
+        } finally {
+          setUpdating(false);
+        }
+      };
+
+      return jsxs('section', {
+        style: {
+          marginTop: '12px',
+          padding: '12px 14px',
+          borderRadius: '10px',
+          border: '1px solid rgba(56,189,248,0.28)',
+          background: 'var(--dsw-alias-bg-layer-1, rgba(15,23,42,0.32))',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          maxWidth: '760px'
+        },
+        children: [
+          jsx('h3', { style: { margin: 0, fontSize: '13px', fontWeight: 600 }, children: '✨ 苍蓝琉璃 · 检查更新' }),
+          jsxs('div', {
+            style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+            children: [
+              jsx('button', {
+                type: 'button',
+                disabled: checking || updating,
+                onClick: () => void onCheckThis(),
+                style: {
+                  padding: '4px 11px',
+                  borderRadius: '7px',
+                  border: '1px solid rgba(56,189,248,0.42)',
+                  background: 'rgba(56,189,248,0.16)',
+                  color: 'var(--dsw-alias-label-primary, inherit)',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                },
+                children: checking ? '检查中...' : '🔍 检查更新'
+              }),
+              item?.updateInfo?.hasUpdate && (item.sourceKind === 'npm' || item.sourceKind === 'github') ? jsx('button', {
+                type: 'button',
+                disabled: updating || checking,
+                onClick: () => void onUpdateThis(),
+                style: {
+                  padding: '4px 11px',
+                  borderRadius: '7px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg,#3b82f6,#7c3aed)',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600
+                },
+                children: updating ? '更新中...' : `⬆️ 更新至 ${item.updateInfo.latestVersion}`
+              }) : null,
+              msg ? jsx('span', { style: { fontSize: '12px', opacity: 0.88, userSelect: 'text', WebkitUserSelect: 'text' }, children: msg }) : null
             ]
           })
         ]
@@ -9207,6 +10844,7 @@ window.__ModuleLoader__.load({
             const onThemeChanged = () => {
               applyVisualStyles();
               notifyDshThemeListeners();
+              scheduleMermaidScan(true);
             };
             const off = typeof tCtx?.on === 'function' ? tCtx.on('theme/change', onThemeChanged) : null;
             tCtx.effect?.(() => () => {
@@ -9253,6 +10891,17 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('sidebar.right.pane.tab.title', () =>
         ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: TAB_ID }, RightSidebarTitle)
       );
+
+      try {
+        ctx.slots.inject('plugins.detail.section', () =>
+          ctx.slots.register({
+            name: 'plugins.detail.section',
+            id: 'dsh-azure-glass-detail-updater',
+            order: 32,
+            inject: () => ({})
+          }, PluginDetailUpdateSection)
+        );
+      } catch {}
 
       startDomObserver();
       void loadFromHost();

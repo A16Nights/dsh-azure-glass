@@ -15,6 +15,22 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  CURATED_SKIN_CATALOG,
+  COMMUNITY_SKIN_SITES,
+  listLocalSkins,
+  getSkinStyleBundle,
+  deleteLocalSkin,
+  importSkinZip,
+  serveSkinAsset
+} from './skins-service.js';
+import {
+  listInstalledPlugins,
+  checkAllPluginUpdates,
+  togglePluginEnabled,
+  updateInstalledPlugin,
+  serveMermaidBundle
+} from './plugins-service.js';
 
 export const name = 'dsh-azure-glass';
 export const inject = ['webServer'];
@@ -182,8 +198,15 @@ const DEFAULT_CONFIG = Object.freeze({
 
   // 9. Wallpaper Engine 插件共存兼容（true = 由苍蓝琉璃控制并屏蔽 WE 对应项；false = 交由 WE 插件控制）
   weControlGlass: true,
+  weControlComposer: true,
   weControlColor: true,
-  weControlAvatar: true
+  weControlAvatar: true,
+
+  // 10. 皮肤创意工坊、插件更新中心与 Mermaid 图示渲染
+  mermaidEnabled: true,
+  activeSkinId: '',
+  skinRespectWe: true,
+  pluginUpdaterPlacement: 'both' // 'both' | 'glass-only'
 });
 
 function resolveStoreDir() {
@@ -358,8 +381,14 @@ function normalizeConfig(raw) {
     studioUiTheme: normalizeStudioUiTheme(src.studioUiTheme),
 
     weControlGlass: src.weControlGlass !== false,
+    weControlComposer: src.weControlComposer !== false,
     weControlColor: src.weControlColor !== false,
-    weControlAvatar: src.weControlAvatar !== false
+    weControlAvatar: src.weControlAvatar !== false,
+
+    mermaidEnabled: src.mermaidEnabled !== false,
+    activeSkinId: cleanStr(src.activeSkinId, 64),
+    skinRespectWe: src.skinRespectWe !== false,
+    pluginUpdaterPlacement: src.pluginUpdaterPlacement === 'glass-only' ? 'glass-only' : 'both'
   };
 }
 
@@ -1329,6 +1358,110 @@ async function handleVersion(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Skin Workshop, Plugin Update Manager & Mermaid Runtime HTTP Handlers
+// ---------------------------------------------------------------------------
+function sendJson(res, status, data) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(data));
+}
+
+function handleSkinsList(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  const local = listLocalSkins();
+  const catalog = CURATED_SKIN_CATALOG.map((item) => ({
+    id: item.id,
+    name: item.name,
+    nameEn: item.nameEn,
+    author: item.author,
+    tagline: item.tagline,
+    tags: item.tags,
+    accent: item.accent,
+    swatches: item.swatches
+  }));
+  sendJson(res, 200, { ok: true, local, catalog, sites: COMMUNITY_SKIN_SITES });
+}
+
+function handleSkinsCss(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  const urlObj = new URL(req.url || '/', 'http://localhost');
+  const id = urlObj.searchParams.get('id') || '';
+  const stripBg = urlObj.searchParams.get('stripBg') === '1';
+  const result = getSkinStyleBundle(id, { stripBg });
+  sendJson(res, result.ok ? 200 : 404, result);
+}
+
+function handleSkinsAsset(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  serveSkinAsset(req, res);
+}
+
+async function handleSkinsImport(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
+  const payload = await readJsonBody(req, 56 * 1024 * 1024);
+  if (payload?.__tooLarge) return sendJson(res, 413, { error: '皮肤包过大（最大 40MB）' });
+  const result = await importSkinZip(payload?.dataUrl || payload?.base64 || '', payload?.name || '');
+  sendJson(res, result.ok ? 200 : 400, result);
+}
+
+async function handleSkinsDelete(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
+  const payload = await readJsonBody(req, 16384);
+  const id = typeof payload?.id === 'string' ? payload.id.trim() : '';
+  const result = deleteLocalSkin(id);
+  if (result.ok && currentConfig.activeSkinId === id) {
+    currentConfig = normalizeConfig({ ...currentConfig, activeSkinId: '' });
+    writeConfigFile();
+  }
+  sendJson(res, result.ok ? 200 : 400, result);
+}
+
+function handlePluginsList(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  const result = listInstalledPlugins(PLUGIN_DIR);
+  sendJson(res, result.ok ? 200 : 500, result);
+}
+
+async function handlePluginsCheck(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  const urlObj = new URL(req.url || '/', 'http://localhost');
+  const force = urlObj.searchParams.get('force') === '1';
+  const result = await checkAllPluginUpdates(PLUGIN_DIR, { force });
+  sendJson(res, result.ok ? 200 : 500, result);
+}
+
+async function handlePluginsToggle(req, res, ctx) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
+  const payload = await readJsonBody(req, 16384);
+  const name = typeof payload?.name === 'string' ? payload.name.trim() : '';
+  const enabled = payload?.enabled === true;
+  const result = await togglePluginEnabled(ctx, PLUGIN_DIR, name, enabled);
+  sendJson(res, result.ok ? 200 : 400, result);
+}
+
+async function handlePluginsUpdate(req, res, ctx) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
+  const payload = await readJsonBody(req, 16384);
+  const name = typeof payload?.name === 'string' ? payload.name.trim() : '';
+  const result = await updateInstalledPlugin(ctx, PLUGIN_DIR, name);
+  sendJson(res, result.ok ? 200 : 400, result);
+}
+
+async function handleMermaidBundle(req, res) {
+  if (setCors(req, res)) return;
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  await serveMermaidBundle(req, res, STORE_DIR);
+}
+
 export function apply(ctx) {
   ctx.logger?.info?.(`[dsh-azure-glass] store dir: ${STORE_DIR}`);
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/config', handler: withRequestGuard(ctx, handleConfig) });
@@ -1342,6 +1475,16 @@ export function apply(ctx) {
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/meta', handler: withRequestGuard(ctx, handleFileMeta) });
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/slice', handler: withRequestGuard(ctx, handleFileSlice) });
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/search', handler: withRequestGuard(ctx, handleFileSearch) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/list', handler: withRequestGuard(ctx, handleSkinsList) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/css', handler: withRequestGuard(ctx, handleSkinsCss) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/asset', handler: withRequestGuard(ctx, handleSkinsAsset) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/import', handler: withRequestGuard(ctx, handleSkinsImport) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/delete', handler: withRequestGuard(ctx, handleSkinsDelete) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/list', handler: withRequestGuard(ctx, handlePluginsList) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/check', handler: withRequestGuard(ctx, handlePluginsCheck) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/toggle', handler: withRequestGuard(ctx, handlePluginsToggle) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/update', handler: withRequestGuard(ctx, handlePluginsUpdate) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/mermaid.js', handler: withRequestGuard(ctx, handleMermaidBundle) });
 
   // 安全注入 /side-chat 命令（整合自已归档的 dsh-side-session）
   if (typeof ctx.inject === 'function') {
