@@ -3,8 +3,8 @@
 <p>🌐 &nbsp; <strong>简体中文</strong> &nbsp;·&nbsp; <a href="README.en.md">English</a></p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
-  <img src="assets/readme/hero-light.svg" alt="苍蓝琉璃工坊 · Azure Glass" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg?v=2">
+  <img src="assets/readme/hero-light.svg?v=2" alt="苍蓝琉璃工坊 · Azure Glass" width="100%">
 </picture>
 
 <p>
