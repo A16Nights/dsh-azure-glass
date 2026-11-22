@@ -4,7 +4,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
-  <img src="assets/readme/hero-light.svg" alt="苍蓝琉璃 · Azure Glass" width="100%">
+  <img src="assets/readme/hero-light.svg" alt="苍蓝琉璃工坊 · Azure Glass" width="100%">
 </picture>
 
 <p>
@@ -32,7 +32,7 @@
 > **当前处于早期测试阶段（v0.1.3 Beta）**
 > 本插件仍在持续迭代与打磨中，部分功能、配置结构与界面细节可能会在后续版本中调整。如遇到问题或有改进建议，欢迎在 [Issues](https://github.com/A16Nights/dsh-azure-glass/issues) 反馈。
 
-**苍蓝琉璃（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，兼顾超长对话的丝滑流畅度与高度自由的桌面级毛玻璃视觉定制。
+**苍蓝琉璃工坊（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，兼顾超长对话的丝滑流畅度与高度自由的桌面级毛玻璃视觉定制。
 
 <table>
 <tr>
