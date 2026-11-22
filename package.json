@@ -1,6 +1,6 @@
 {
   "name": "dsh-azure-glass",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "[测试版] 苍蓝琉璃（Azure Glass）—— DeepSeek Harness (DSH) 一体化性能与视觉美化插件：长会话视口虚拟化、壁纸库与视差、分区毛玻璃、主题色调中心、琉璃收纳匣、霓虹点击特效与自定义会话头像。",
   "type": "module",
   "main": "./index.js",

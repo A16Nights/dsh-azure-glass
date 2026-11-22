@@ -178,7 +178,12 @@ const DEFAULT_CONFIG = Object.freeze({
     activeId: 'official-azure',
     customDraft: { primary: '#3b82f6', secondary: '#7c3aed' },
     slots: [null, null, null, null]
-  }
+  },
+
+  // 9. Wallpaper Engine 插件共存兼容（true = 由苍蓝琉璃控制并屏蔽 WE 对应项；false = 交由 WE 插件控制）
+  weControlGlass: true,
+  weControlColor: true,
+  weControlAvatar: true
 });
 
 function resolveStoreDir() {
@@ -350,7 +355,11 @@ function normalizeConfig(raw) {
     customCssEnabled: src.customCssEnabled === true,
     customCss: typeof src.customCss === 'string' ? src.customCss.slice(0, 200000) : '',
 
-    studioUiTheme: normalizeStudioUiTheme(src.studioUiTheme)
+    studioUiTheme: normalizeStudioUiTheme(src.studioUiTheme),
+
+    weControlGlass: src.weControlGlass !== false,
+    weControlColor: src.weControlColor !== false,
+    weControlAvatar: src.weControlAvatar !== false
   };
 }
 
@@ -433,9 +442,110 @@ function writeConfigFile() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Request Trust Fence & CORS Hardening (Connection Service + Structural Guard)
+// ---------------------------------------------------------------------------
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '[::1]', '::1', 'localhost']);
+
+function parseAuthority(value, defaultScheme) {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  let url;
+  try {
+    url = new URL(value.includes('://') ? value.trim() : `${defaultScheme ?? 'http'}://${value.trim()}`);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  const port = url.port === '' ? (url.protocol === 'https:' ? '443' : '80') : url.port;
+  return {
+    scheme: url.protocol.replace(':', ''),
+    hostname: url.hostname.toLowerCase(),
+    port
+  };
+}
+
+function isDesktopRelayReferer(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'dsh-app:' && url.hostname === 'app' && url.port === ''
+      && url.username === '' && url.password === '';
+  } catch {
+    return false;
+  }
+}
+
+function structuralRejectionReason(req) {
+  const host = parseAuthority(req?.headers?.host, 'http');
+  if (host === null || !LOOPBACK_HOSTS.has(host.hostname)) return 'host-not-loopback';
+  const site = String(req?.headers?.['sec-fetch-site'] ?? '').toLowerCase();
+  if (site === 'cross-site') return 'cross-site';
+  for (const header of ['origin', 'referer']) {
+    const raw = req?.headers?.[header];
+    if (typeof raw !== 'string' || raw.trim() === '') continue;
+    if (header === 'referer' && isDesktopRelayReferer(raw)) {
+      if (req.headers.origin !== undefined || req.headers['sec-fetch-site'] !== undefined) {
+        return 'desktop-relay-markers';
+      }
+      continue;
+    }
+    const authority = parseAuthority(raw.trim());
+    if (authority === null) return `${header}-invalid`;
+    if (authority.scheme !== host.scheme || authority.hostname !== host.hostname || authority.port !== host.port) {
+      return `${header}-mismatch`;
+    }
+  }
+  return undefined;
+}
+
+function rejectionForRequest(req, ctx) {
+  // 1. 先检查结构化同源/回环围栏（跨源 OPTIONS / 非回环 Host / 异源 Origin 直接 403）
+  const structReason = structuralRejectionReason(req);
+  if (structReason !== undefined) {
+    return { status: 403, error: 'forbidden' };
+  }
+
+  // 2. 逐请求动态获取宿主 connection 服务（不快照，避免加载时序滞后）
+  let connection;
+  try {
+    connection = typeof ctx?.get === 'function' ? ctx.get('connection') : ctx?.connection;
+  } catch {
+    return { status: 503, error: 'admission unavailable' };
+  }
+
+  if (connection) {
+    try {
+      if (typeof connection.admit === 'function') {
+        const admission = connection.admit(req);
+        const status = admission && typeof admission === 'object' ? admission.rejection : undefined;
+        if (status !== undefined) {
+          return { status, error: status === 401 ? 'unauthorized' : 'forbidden' };
+        }
+        return undefined;
+      }
+      if (typeof connection.requestRejection === 'function') {
+        const status = connection.requestRejection(req);
+        if (status !== undefined) {
+          return { status, error: status === 401 ? 'unauthorized' : 'forbidden' };
+        }
+        return undefined;
+      }
+    } catch {
+      return { status: 503, error: 'admission unavailable' };
+    }
+  }
+
+  // 无 connection 服务的极简组合（如 TUI）已由第 1 步结构化围栏守住
+  return undefined;
+}
+
 function setCors(req, res, contentType = 'application/json; charset=utf-8') {
   if (contentType) res.setHeader('Content-Type', contentType);
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 仅在已通过同源围栏且请求携带 Origin 时回显同源 Origin，绝不返回通配符 *
+  const origin = typeof req?.headers?.origin === 'string' ? req.headers.origin.trim() : '';
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
@@ -444,6 +554,20 @@ function setCors(req, res, contentType = 'application/json; charset=utf-8') {
     return true;
   }
   return false;
+}
+
+function withRequestGuard(ctx, handler) {
+  return async (req, res) => {
+    const rejected = rejectionForRequest(req, ctx);
+    if (rejected) {
+      res.statusCode = rejected.status;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(JSON.stringify({ ok: false, error: rejected.error }));
+      return;
+    }
+    return await handler(req, res, ctx);
+  };
 }
 
 function readJsonBody(req, maxBytes) {
@@ -849,19 +973,117 @@ function handleWallpaperCurrent(req, res) {
 const fileIndexCache = new Map(); // normalizedPath -> { size, mtimeMs, offsets: number[], isBinary: boolean }
 const MAX_INDEXED_FILES = 8;
 
-function resolveReadableFile(rawPath) {
-  if (typeof rawPath !== 'string') return { error: '文件路径不能为空' };
+function safeRealpath(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath.trim()) return '';
+  try {
+    return fs.realpathSync(path.resolve(targetPath.trim()));
+  } catch {
+    return '';
+  }
+}
+
+function normalizeForCompare(p) {
+  const resolved = path.resolve(p);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isPathWithin(rootDir, targetPath) {
+  const normRoot = normalizeForCompare(rootDir);
+  const normTarget = normalizeForCompare(targetPath);
+  const rel = path.relative(normRoot, normTarget);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+function getDeniedSensitiveRoots() {
+  const roots = new Set();
+  try {
+    const dshEnv = typeof process.env.DSH_HOME === 'string' ? process.env.DSH_HOME.trim() : '';
+    const home = os.homedir();
+    const candidates = [
+      dshEnv || (home ? path.join(home, '.dsh') : ''),
+      home ? path.join(home, '.ssh') : '',
+      home ? path.join(home, '.gnupg') : '',
+      home ? path.join(home, '.aws') : '',
+      home ? path.join(home, '.kube') : ''
+    ];
+    for (const c of candidates) {
+      if (!c) continue;
+      const real = safeRealpath(c);
+      if (real) roots.add(real);
+      else roots.add(path.resolve(c));
+    }
+  } catch {}
+  return Array.from(roots);
+}
+
+function getAllowedWorkspaceRoots(ctx, sessionId) {
+  const roots = new Set();
+  const addRoot = (candidate) => {
+    const real = safeRealpath(candidate);
+    if (real) roots.add(real);
+  };
+  try {
+    const wd = typeof ctx?.get === 'function' ? ctx.get('workingDirectory') : ctx?.workingDirectory;
+    if (wd && typeof wd.defaultDirectory === 'string' && wd.defaultDirectory.trim()) {
+      addRoot(wd.defaultDirectory);
+    }
+    const sessions = typeof ctx?.get === 'function' ? ctx.get('sessions') : ctx?.sessions;
+    if (sessions) {
+      const collectSession = (s) => {
+        if (!s || typeof s !== 'object') return;
+        const cwd = (wd && typeof wd.get === 'function' ? wd.get(s) : '') || s?.header?.cwd || s?.cwd || '';
+        if (typeof cwd === 'string' && cwd.trim()) addRoot(cwd);
+      };
+      if (typeof sessionId === 'string' && sessionId.trim() && typeof sessions.get === 'function') {
+        collectSession(sessions.get(sessionId.trim()));
+      }
+      if (typeof sessions.list === 'function') {
+        const list = sessions.list();
+        if (Array.isArray(list)) list.forEach(collectSession);
+      } else if (typeof sessions.values === 'function') {
+        for (const s of sessions.values()) collectSession(s);
+      } else if (typeof sessions[Symbol.iterator] === 'function') {
+        for (const s of sessions) collectSession(Array.isArray(s) ? s[1] : s);
+      }
+    }
+  } catch {}
+  return Array.from(roots);
+}
+
+function resolveReadableFile(rawPath, ctx, sessionId) {
+  if (typeof rawPath !== 'string') return { error: '文件路径不能为空', status: 400 };
   const cleaned = rawPath.trim().replace(/^["']|["']$/g, '');
-  if (!cleaned || cleaned.includes('\0')) return { error: '无效路径' };
+  if (!cleaned || cleaned.includes('\0')) return { error: '无效路径', status: 400 };
   const fullPath = path.resolve(cleaned);
+
+  // 1. 解析符号链接 / Junction 后的真实物理路径
+  let realPath;
+  try {
+    realPath = fs.realpathSync(fullPath);
+  } catch {
+    return { error: '文件不存在或无权读取', status: 404 };
+  }
+
+  // 2. 硬拒绝敏感目录（~/.dsh 凭据目录、~/.ssh 等）
+  const deniedRoots = getDeniedSensitiveRoots();
+  if (deniedRoots.some((d) => isPathWithin(d, realPath))) {
+    return { error: '禁止访问受保护目录', status: 403 };
+  }
+
+  // 3. 严格限定在宿主提供的合法工作区根目录内（无合法根目录时 fail closed）
+  const allowedRoots = getAllowedWorkspaceRoots(ctx, sessionId);
+  if (allowedRoots.length === 0 || !allowedRoots.some((r) => isPathWithin(r, realPath))) {
+    return { error: '目标文件不在当前工作区范围内', status: 403 };
+  }
+
   let st;
   try {
-    st = fs.statSync(fullPath);
+    st = fs.statSync(realPath);
   } catch {
-    return { error: '文件不存在或无权读取' };
+    return { error: '文件不存在或无权读取', status: 404 };
   }
-  if (!st.isFile()) return { error: '目标不是普通文件' };
-  return { fullPath, size: st.size, mtimeMs: st.mtimeMs };
+  if (!st.isFile()) return { error: '目标不是普通文件', status: 400 };
+  return { fullPath: realPath, size: st.size, mtimeMs: st.mtimeMs };
 }
 
 function getOrBuildLineIndex(fullPath, size, mtimeMs) {
@@ -911,13 +1133,13 @@ function getOrBuildLineIndex(fullPath, size, mtimeMs) {
   return entry;
 }
 
-async function handleFileMeta(req, res) {
+async function handleFileMeta(req, res, ctx) {
   if (setCors(req, res)) return;
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') { res.statusCode = 405; res.end(JSON.stringify({ error: 'method not allowed' })); return; }
   const payload = await readJsonBody(req, 64 * 1024);
-  const info = resolveReadableFile(payload?.path);
-  if (info.error) { res.statusCode = 400; res.end(JSON.stringify({ ok: false, error: info.error })); return; }
+  const info = resolveReadableFile(payload?.path, ctx, payload?.sessionId);
+  if (info.error) { res.statusCode = info.status || 400; res.end(JSON.stringify({ ok: false, error: info.error })); return; }
   try {
     const idx = getOrBuildLineIndex(info.fullPath, info.size, info.mtimeMs);
     res.statusCode = 200;
@@ -936,13 +1158,13 @@ async function handleFileMeta(req, res) {
   }
 }
 
-async function handleFileSlice(req, res) {
+async function handleFileSlice(req, res, ctx) {
   if (setCors(req, res)) return;
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') { res.statusCode = 405; res.end(JSON.stringify({ error: 'method not allowed' })); return; }
   const payload = await readJsonBody(req, 64 * 1024);
-  const info = resolveReadableFile(payload?.path);
-  if (info.error) { res.statusCode = 400; res.end(JSON.stringify({ ok: false, error: info.error })); return; }
+  const info = resolveReadableFile(payload?.path, ctx, payload?.sessionId);
+  if (info.error) { res.statusCode = info.status || 400; res.end(JSON.stringify({ ok: false, error: info.error })); return; }
   try {
     const idx = getOrBuildLineIndex(info.fullPath, info.size, info.mtimeMs);
     const total = idx.offsets.length;
@@ -974,14 +1196,14 @@ async function handleFileSlice(req, res) {
   }
 }
 
-async function handleFileSearch(req, res) {
+async function handleFileSearch(req, res, ctx) {
   if (setCors(req, res)) return;
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') { res.statusCode = 405; res.end(JSON.stringify({ error: 'method not allowed' })); return; }
   const payload = await readJsonBody(req, 64 * 1024);
-  const info = resolveReadableFile(payload?.path);
+  const info = resolveReadableFile(payload?.path, ctx, payload?.sessionId);
   const query = typeof payload?.query === 'string' ? payload.query.trim() : '';
-  if (info.error) { res.statusCode = 400; res.end(JSON.stringify({ ok: false, error: info.error })); return; }
+  if (info.error) { res.statusCode = info.status || 400; res.end(JSON.stringify({ ok: false, error: info.error })); return; }
   if (!query) { res.statusCode = 200; res.end(JSON.stringify({ ok: true, hits: [], truncated: false })); return; }
   try {
     const idx = getOrBuildLineIndex(info.fullPath, info.size, info.mtimeMs);
@@ -1109,17 +1331,17 @@ async function handleVersion(req, res) {
 
 export function apply(ctx) {
   ctx.logger?.info?.(`[dsh-azure-glass] store dir: ${STORE_DIR}`);
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/config', handler: handleConfig });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/version', handler: handleVersion });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/upload', handler: handleWallpaperUpload });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/current', handler: handleWallpaperCurrent });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/list', handler: handleWallpaperList });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/select', handler: handleWallpaperSelect });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/delete', handler: handleWallpaperDelete });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/item', handler: handleWallpaperItem });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/meta', handler: handleFileMeta });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/slice', handler: handleFileSlice });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/search', handler: handleFileSearch });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/config', handler: withRequestGuard(ctx, handleConfig) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/version', handler: withRequestGuard(ctx, handleVersion) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/upload', handler: withRequestGuard(ctx, handleWallpaperUpload) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/current', handler: withRequestGuard(ctx, handleWallpaperCurrent) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/list', handler: withRequestGuard(ctx, handleWallpaperList) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/select', handler: withRequestGuard(ctx, handleWallpaperSelect) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/delete', handler: withRequestGuard(ctx, handleWallpaperDelete) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/item', handler: withRequestGuard(ctx, handleWallpaperItem) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/meta', handler: withRequestGuard(ctx, handleFileMeta) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/slice', handler: withRequestGuard(ctx, handleFileSlice) });
+  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/search', handler: withRequestGuard(ctx, handleFileSearch) });
 
   // 安全注入 /side-chat 命令（整合自已归档的 dsh-side-session）
   if (typeof ctx.inject === 'function') {

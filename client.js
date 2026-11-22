@@ -186,7 +186,11 @@ window.__ModuleLoader__.load({
         activeId: 'official-azure',
         customDraft: { primary: '#3b82f6', secondary: '#7c3aed' },
         slots: [null, null, null, null]
-      }
+      },
+
+      weControlGlass: true,
+      weControlColor: true,
+      weControlAvatar: true
     };
 
     const STUDIO_UI_OFFICIAL_THEMES = [
@@ -546,6 +550,158 @@ window.__ModuleLoader__.load({
       return 'light';
     }
 
+    // -----------------------------------------------------------------------
+    // Wallpaper Engine 插件共存兼容引擎（自动壁纸让位 + 重叠模块按需接管/屏蔽）
+    // -----------------------------------------------------------------------
+    let weCompatState = { installed: false, wallpaperActive: false };
+    const weCompatListeners = new Set();
+    let weCompatBodyObs = null;
+    let weCompatHeadObs = null;
+    let weCompatSyncQueued = false;
+
+    function detectWeCompatState() {
+      try {
+        const body = document.body;
+        const hasStyleOrNode = Boolean(
+          document.querySelector(
+            'style[data-plugin-css^="dsh-wallpaper-engine/"], style[data-plugin="dsh-wallpaper-engine"], #dsh-wallpaper-engine-layer, #we-font-scope, #we-caret-patch'
+          )
+        );
+        const wallpaperActive = Boolean(
+          body && body.hasAttribute('data-we-wallpaper')
+        );
+        const installed = Boolean(
+          hasStyleOrNode || wallpaperActive || (body && body.hasAttribute('data-we-adapter'))
+        );
+        return { installed, wallpaperActive };
+      } catch {
+        return { installed: false, wallpaperActive: false };
+      }
+    }
+
+    function isAzureGlassOwner() {
+      return !weCompatState.installed || config.weControlGlass !== false;
+    }
+
+    function isAzureColorOwner() {
+      return !weCompatState.installed || config.weControlColor !== false;
+    }
+
+    function isAzureAvatarOwner() {
+      return !weCompatState.installed || config.weControlAvatar !== false;
+    }
+
+    function syncWeCompatExternalStyles() {
+      try {
+        const installed = weCompatState.installed;
+        const blockWeGlass = installed && config.weControlGlass !== false;
+        const blockWeColor = installed && config.weControlColor !== false;
+
+        // 1. 屏蔽/恢复 Wallpaper Engine 的额外玻璃层（绝不禁用 styles-v3，保证对方壁纸层正常透出）
+        const extraGlassTag = document.querySelector('style[data-plugin-css="dsh-wallpaper-engine/extra-glass"]');
+        if (extraGlassTag) {
+          extraGlassTag.disabled = blockWeGlass;
+        }
+
+        // 2. 屏蔽/恢复 Wallpaper Engine 的字体/文本改色与光标改色样式表
+        const fontTag = document.getElementById('we-font-scope');
+        if (fontTag && fontTag.tagName === 'STYLE') {
+          fontTag.disabled = blockWeColor;
+        }
+        const caretTag = document.getElementById('we-caret-patch');
+        if (caretTag && caretTag.tagName === 'STYLE') {
+          caretTag.disabled = blockWeColor;
+        }
+
+        // 3. 当由苍蓝琉璃接管玻璃或色彩时，确保苍蓝琉璃主样式表位于 head 末尾以保持最高级联优先级
+        if (installed && (blockWeGlass || blockWeColor)) {
+          const ownStyle = document.getElementById(STYLE_ID);
+          if (ownStyle && ownStyle.parentElement === document.head && document.head.lastElementChild !== ownStyle) {
+            document.head.appendChild(ownStyle);
+          }
+        }
+      } catch {}
+    }
+
+    function notifyWeCompatListeners() {
+      for (const fn of weCompatListeners) {
+        try { fn(); } catch {}
+      }
+    }
+
+    function refreshWeCompatState(reapply = true) {
+      const next = detectWeCompatState();
+      const changed = next.installed !== weCompatState.installed || next.wallpaperActive !== weCompatState.wallpaperActive;
+      if (changed) {
+        weCompatState = next;
+        notifyWeCompatListeners();
+      }
+      syncWeCompatExternalStyles();
+      if (changed && reapply) {
+        try { applyVisualStyles(); } catch {}
+        try { ensureWallpaperLayer(); } catch {}
+        try { syncAvatarLayer(); } catch {}
+      }
+    }
+
+    function scheduleWeCompatSync() {
+      if (weCompatSyncQueued) return;
+      weCompatSyncQueued = true;
+      queueMicrotask(() => {
+        weCompatSyncQueued = false;
+        refreshWeCompatState(true);
+      });
+    }
+
+    function startWeCompatObserver() {
+      refreshWeCompatState(false);
+      if (typeof MutationObserver !== 'function') return;
+      try {
+        if (!weCompatBodyObs && document.body) {
+          weCompatBodyObs = new MutationObserver(() => scheduleWeCompatSync());
+          weCompatBodyObs.observe(document.body, {
+            attributes: true,
+            attributeFilter: [
+              'data-we-wallpaper',
+              'data-we-adapter',
+              'data-we-glass-page',
+              'data-we-glass-chat',
+              'data-we-sidebar-glass',
+              'data-we-titlebar-glass',
+              'data-we-avatar'
+            ]
+          });
+        }
+        if (!weCompatHeadObs && document.head) {
+          weCompatHeadObs = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+              for (const n of m.addedNodes) {
+                if (n && n.nodeType === 1 && n.tagName === 'STYLE') {
+                  const id = n.id || '';
+                  const pcss = n.dataset?.pluginCss || '';
+                  if (id === 'we-font-scope' || id === 'we-caret-patch' || pcss.startsWith('dsh-wallpaper-engine/')) {
+                    scheduleWeCompatSync();
+                    return;
+                  }
+                }
+              }
+            }
+          });
+          weCompatHeadObs.observe(document.head, { childList: true });
+        }
+      } catch {}
+    }
+
+    const weCompatStore = {
+      subscribe(fn) {
+        weCompatListeners.add(fn);
+        return () => weCompatListeners.delete(fn);
+      },
+      getSnapshot() {
+        return weCompatState;
+      }
+    };
+
     function getActiveWallpaperUrl() {
       if (!config.wallpaperEnabled || config.turboMode || config.wallpaperSource === 'none') return '';
       if (config.wallpaperSource === 'uploaded' && config.hasUploadedWallpaper) {
@@ -605,11 +761,14 @@ window.__ModuleLoader__.load({
         fxBg.after(scrim);
       }
 
-      const url = getActiveWallpaperUrl();
-      const bgMode = !config.turboMode ? (config.bgEffectMode || 'none') : 'none';
+      const weWpActive = weCompatState.wallpaperActive;
+      const useAzureGlass = isAzureGlassOwner();
+      const url = weWpActive ? '' : getActiveWallpaperUrl();
+      const bgMode = (!config.turboMode && !weWpActive) ? (config.bgEffectMode || 'none') : 'none';
       const hasBackdrop = Boolean(url) || bgMode !== 'none';
       const isLight = detectTheme() === 'light';
-      document.documentElement.setAttribute('data-dsh-sg-wp', hasBackdrop ? '1' : '0');
+      // 当 WE 壁纸运行且毛玻璃由苍蓝琉璃控制时，保持根画布透明以透出 WE 壁纸；若毛玻璃交由 WE 控制则不干预
+      document.documentElement.setAttribute('data-dsh-sg-wp', (useAzureGlass && (hasBackdrop || weWpActive)) ? '1' : '0');
 
       const blurPx = getEffectiveWallpaperBlurPx();
       const extraScale = config.parallaxEnabled ? (1 + (Number(config.parallaxTravelPct) || 0) / 100) : 1;
@@ -671,7 +830,7 @@ window.__ModuleLoader__.load({
       const canvas = document.getElementById('dsh-sg-bg-effect');
       if (!canvas) return;
       if (topoRaf) { cancelAnimationFrame(topoRaf); topoRaf = 0; }
-      const mode = config.turboMode ? 'none' : (config.bgEffectMode || 'none');
+      const mode = (config.turboMode || weCompatState.wallpaperActive) ? 'none' : (config.bgEffectMode || 'none');
       if (mode === 'none') {
         canvas.style.display = 'none';
         canvas.style.background = 'none';
@@ -721,7 +880,7 @@ window.__ModuleLoader__.load({
     let parallaxBound = false;
     function syncParallaxEngine() {
       const root = document.documentElement;
-      if (!config.parallaxEnabled || config.turboMode) {
+      if (!config.parallaxEnabled || config.turboMode || weCompatState.wallpaperActive) {
         root.style.setProperty('--dsh-sg-px', '0px');
         root.style.setProperty('--dsh-sg-py', '0px');
         root.style.setProperty('--dsh-sg-ui-px', '0px');
@@ -735,7 +894,7 @@ window.__ModuleLoader__.load({
       let pxRaf = 0;
       let lastX = 0.5, lastY = 0.5;
       window.addEventListener('pointermove', (ev) => {
-        if (!config.parallaxEnabled || config.turboMode) return;
+        if (!config.parallaxEnabled || config.turboMode || weCompatState.wallpaperActive) return;
         lastX = ev.clientX / Math.max(1, window.innerWidth);
         lastY = ev.clientY / Math.max(1, window.innerHeight);
         if (pxRaf) return;
@@ -1378,7 +1537,7 @@ window.__ModuleLoader__.load({
     }
 
     function syncAvatarLayer() {
-      const hasAny = !!(getAvatarUrlForSide('user') || getAvatarUrlForSide('ai'));
+      const hasAny = isAzureAvatarOwner() && !!(getAvatarUrlForSide('user') || getAvatarUrlForSide('ai'));
       const body = document.body;
       if (!hasAny || !body || typeof MutationObserver !== 'function') {
         if (avatarActive || avatarObserver) stopAvatarLayer();
@@ -2253,8 +2412,13 @@ window.__ModuleLoader__.load({
         document.head.appendChild(style);
       }
 
-      const glassActive = config.glassEnabled && !config.turboMode;
-      const wpActive = Boolean(getActiveWallpaperUrl()) || (!config.turboMode && (config.bgEffectMode || 'none') !== 'none');
+      const useAzureGlass = isAzureGlassOwner();
+      const useAzureColor = isAzureColorOwner();
+      const useAzureAvatar = isAzureAvatarOwner();
+      const glassActive = useAzureGlass && config.glassEnabled && !config.turboMode;
+      const weWpActive = weCompatState.wallpaperActive;
+      const ownWpActive = !weWpActive && (Boolean(getActiveWallpaperUrl()) || (!config.turboMode && (config.bgEffectMode || 'none') !== 'none'));
+      const wpActive = useAzureGlass && (ownWpActive || weWpActive);
       const blur = glassActive ? `${config.glassBlurPx}px` : '0px';
       const compBlur = glassActive ? `${config.glassComposerBlurPx}px` : '0px';
       const sidechatCompBlurNum = Number.isFinite(Number(config.glassSidechatComposerBlurPx))
@@ -2294,24 +2458,26 @@ window.__ModuleLoader__.load({
       const activeStudioTheme = studioThemePreview || resolveStudioUiTheme(config.studioUiTheme);
       const stUi = computeStudioUiPalette(activeStudioTheme.primary, activeStudioTheme.secondary, isLight);
 
-      // 生成 18 个 UI 槽位的 --dsw-* 变量覆盖
+      // 生成 18 个 UI 槽位的 --dsw-* 变量覆盖（仅在由苍蓝琉璃控制色彩时输出）
       const uiTokenLines = [];
-      for (const slot of UI_COLOR_SLOTS) {
-        if (!slot.token) continue;
-        if (ui[slot.key]) {
-          if (wpActive && (slot.key === 'bgBase' || slot.key === 'bgLayer1' || slot.key === 'bgLayer2' || slot.key === 'bgLayer3' || slot.key === 'sidebarFill' || slot.key === 'menuFill')) {
-            const rgb = hexToRgb(ui[slot.key]);
-            if (rgb) {
-              const a = slot.key === 'bgBase' ? 0
-                : slot.key === 'sidebarFill' ? config.glassSurfaceOpacity
-                : slot.key === 'bgLayer1' ? config.glassChatBgOpacity
-                : slot.key === 'menuFill' ? (config.solidOverlay ? 1 : Math.min(0.96, config.glassComposerOpacity + 0.14))
-                : config.glassComposerOpacity;
-              uiTokenLines.push(`${slot.token}: rgba(${rgb.join(',')}, ${a}) !important;`);
-              continue;
+      if (useAzureColor) {
+        for (const slot of UI_COLOR_SLOTS) {
+          if (!slot.token) continue;
+          if (ui[slot.key]) {
+            if (wpActive && (slot.key === 'bgBase' || slot.key === 'bgLayer1' || slot.key === 'bgLayer2' || slot.key === 'bgLayer3' || slot.key === 'sidebarFill' || slot.key === 'menuFill')) {
+              const rgb = hexToRgb(ui[slot.key]);
+              if (rgb) {
+                const a = slot.key === 'bgBase' ? 0
+                  : slot.key === 'sidebarFill' ? config.glassSurfaceOpacity
+                  : slot.key === 'bgLayer1' ? config.glassChatBgOpacity
+                  : slot.key === 'menuFill' ? (config.solidOverlay ? 1 : Math.min(0.96, config.glassComposerOpacity + 0.14))
+                  : config.glassComposerOpacity;
+                uiTokenLines.push(`${slot.token}: rgba(${rgb.join(',')}, ${a}) !important;`);
+                continue;
+              }
             }
+            uiTokenLines.push(`${slot.token}: ${ui[slot.key]} !important;`);
           }
-          uiTokenLines.push(`${slot.token}: ${ui[slot.key]} !important;`);
         }
       }
 
@@ -2412,7 +2578,8 @@ window.__ModuleLoader__.load({
           transform: translate3d(var(--dsh-sg-ui-px, 0px), var(--dsh-sg-ui-py, 0px), 0);
         }
 
-        /* 窗口外框透明化 + 顶部标题栏独立控制（彻底解决调左侧栏串屏） */
+        /* 窗口外框透明化 + 顶部标题栏独立控制（仅在由苍蓝琉璃控制玻璃质感时输出） */
+        ${useAzureGlass ? `
         html[data-dsh-sg-wp="1"],
         html[data-dsh-sg-wp="1"] body,
         html[data-dsh-sg-wp="1"] #root,
@@ -2457,7 +2624,7 @@ window.__ModuleLoader__.load({
           border-radius: ${config.glassRadiusPx}px !important;
           border-color: ${borderCol} !important;
         }
-        /* 侧边对话输入框：独立不透明度 / 模糊半径 + 右侧避让（避开右下角可信模式浮钮） */
+        /* 侧边对话输入框：独立不透明度 / 模糊半径 + 右侧留白 */
         [class*="sidechatComposer"]:not([class*="sidechatComposerInput"]):not([class*="sidechatComposerBar"]):not([class*="sidechatComposerTools"]):not([class*="sidechatComposerSpacer"]) {
           background: rgba(${surfaceRgb}, ${sidechatCompOp}) !important;
           border-radius: ${config.glassRadiusPx}px !important;
@@ -2501,7 +2668,7 @@ window.__ModuleLoader__.load({
         html[data-dsh-sg-scrolling="1"] [data-composer-card] {
           backdrop-filter: none !important;
           -webkit-backdrop-filter: none !important;
-        }` : ''}
+        }` : ''}` : ''}
 
         /* 方案 A：右侧栏大文档/长列表视口跳过渲染加速（零冲突） */
         ${config.rightSidebarBoostEnabled ? `
@@ -2514,6 +2681,7 @@ window.__ModuleLoader__.load({
           contain-intrinsic-size: auto 44px;
         }` : ''}
 
+        ${useAzureGlass ? `
         /* 用户消息气泡不透明度与模糊（精准命中 DSH 真实气泡节点 [data-message-bubble]） */
         [data-message-bubble],
         [data-conversation-scroll] [data-message-bubble] {
@@ -2548,7 +2716,7 @@ window.__ModuleLoader__.load({
         [class*="diff"], [class*="Diff"], [data-diff], [data-code-lang="diff"] {
           background-color: rgba(${surfaceRgb}, ${diffAlpha}) !important;
           ${diffBlur !== '0px' ? `backdrop-filter: blur(${diffBlur}) saturate(${config.glassSaturate}%) !important; -webkit-backdrop-filter: blur(${diffBlur}) saturate(${config.glassSaturate}%) !important; isolation: isolate;` : ''}
-        }
+        }` : ''}
 
         /* 极简 Neko Glass 细圆角滚动条（绝不用 scrollbar-width: thin 屏蔽 WebKit 自定义样式，也不复活原生隐藏条） */
         ${config.minimalScrollbar ? `
@@ -2574,6 +2742,7 @@ window.__ModuleLoader__.load({
           background-clip: content-box !important;
         }` : ''}
 
+        ${useAzureColor ? `
         /* 9 个 Markdown Prose 角色 + 正文提亮档位（ColorLab 完整还原） */
         ${proseFilter ? `[data-conversation-scroll] [data-chat-flow-kind] { filter: ${proseFilter}; }` : ''}
         ${prose.heading ? `[data-conversation-scroll] h1, [data-conversation-scroll] h2, [data-conversation-scroll] h3, [data-conversation-scroll] h4, [data-conversation-scroll] th { color: ${prose.heading} !important; }` : ''}
@@ -2594,7 +2763,11 @@ window.__ModuleLoader__.load({
         [data-conversation-scroll] [class*="compactionButton"],
         [data-conversation-scroll] [class*="summary"] summary { color: ${config.summaryRowColor} !important; }
         [data-conversation-scroll] [class*="fileCard"],
-        [data-conversation-scroll] [class*="FileCard"] { border-color: ${config.fileCardColor} !important; color: ${config.fileCardColor} !important; }` : ''}
+        [data-conversation-scroll] [class*="FileCard"] { border-color: ${config.fileCardColor} !important; color: ${config.fileCardColor} !important; }` : ''}` : ''}
+
+        ${(weCompatState.installed && useAzureAvatar) ? `
+        /* 苍蓝琉璃接管会话头像时，屏蔽 Wallpaper Engine 的头像节点防止重复显示 */
+        [data-we-avatar-node] { display: none !important; }` : ''}
 
         /* 自定义会话头像（DOM 装饰层配套样式，兼容宿主 display:contents 槽出口锚点） */
         body[data-ag-avatar="on"] [data-ag-avatar-row] {
@@ -2826,21 +2999,22 @@ window.__ModuleLoader__.load({
           white-space: nowrap !important;
         }
 
+        ${useAzureColor ? `
         ${ui.userBubbleBg ? `[data-conversation-scroll] [data-role="user"], [data-conversation-scroll] [class*="userMessage"] { background-color: ${ui.userBubbleBg} !important; border-radius: ${config.glassRadiusPx}px; }` : ''}
         ${ui.codeBlockBg ? `[data-conversation-scroll] pre { background-color: ${ui.codeBlockBg} !important; }` : ''}
         ${config.fontFamily ? `body, [data-conversation-scroll] { font-family: ${config.fontFamily} !important; }` : ''}
         ${config.monoFontFamily ? `code, pre, kbd { font-family: ${config.monoFontFamily} !important; }` : ''}
-        ${config.caretColor ? `textarea, input, [contenteditable="true"] { caret-color: ${config.caretColor} !important; }` : ''}
+        ${config.caretColor ? `textarea, input, [contenteditable="true"] { caret-color: ${config.caretColor} !important; }` : ''}` : ''}
 
         ${config.antigravityLayout ? `
         [data-conversation-scroll] [class*="flowItem"] {
-          font-size: ${config.fontSizePx}px;
-          line-height: ${config.lineHeight};
+          ${useAzureColor ? `font-size: ${config.fontSizePx}px;
+          line-height: ${config.lineHeight};` : ''}
           letter-spacing: 0.01em;
           ${config.chatMaxWidthPx > 0 ? `max-width: ${config.chatMaxWidthPx}px; margin-left: auto; margin-right: auto;` : ''}
         }
         [data-conversation-scroll] pre {
-          font-size: ${config.codeFontSizePx}px;
+          ${useAzureColor ? `font-size: ${config.codeFontSizePx}px;` : ''}
           border-radius: ${Math.max(6, config.glassRadiusPx - 2)}px !important;
           border: 1px solid ${borderCol} !important;
         }` : ''}
@@ -3881,7 +4055,78 @@ window.__ModuleLoader__.load({
           background: linear-gradient(135deg, #e11d48, #f43f5e);
           color: #ffffff;
         }
+        .dsh-sg-compat-bar {
+          margin-bottom: 12px;
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid ${stUi.accentBorder};
+          background: ${isLight ? 'rgba(241, 247, 255, 0.90)' : 'rgba(22, 30, 48, 0.78)'};
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .dsh-sg-compat-bar[data-mode="we"] {
+          border-color: ${isLight ? 'rgba(148, 163, 184, 0.45)' : 'rgba(148, 163, 184, 0.30)'};
+          background: ${isLight ? 'rgba(241, 245, 249, 0.92)' : 'rgba(30, 36, 48, 0.72)'};
+        }
+        .dsh-sg-compat-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .dsh-sg-compat-title {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: ${isLight ? '#0f172a' : '#f1f5f9'};
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .dsh-sg-compat-desc {
+          font-size: 11.5px;
+          line-height: 1.5;
+          color: ${isLight ? '#475569' : '#94a3b8'};
+        }
+        .dsh-sg-compat-seg {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px;
+          border-radius: 9px;
+          border: 1px solid ${isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(255, 255, 255, 0.12)'};
+          background: ${isLight ? 'rgba(226, 232, 240, 0.65)' : 'rgba(10, 14, 24, 0.55)'};
+          gap: 2px;
+          flex-shrink: 0;
+        }
+        .dsh-sg-compat-seg button {
+          border: none;
+          background: transparent;
+          color: ${isLight ? '#475569' : '#94a3b8'};
+          font-size: 11.5px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: 7px;
+          cursor: pointer;
+          transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .dsh-sg-compat-seg button:hover {
+          color: ${isLight ? '#0f172a' : '#f8fafc'};
+        }
+        .dsh-sg-compat-seg button[data-active="1"] {
+          background: linear-gradient(135deg, ${stUi.primary}, ${stUi.secondary});
+          color: #ffffff;
+          box-shadow: 0 2px 8px ${stUi.accentGlow};
+        }
+        .dsh-sg-compat-dimmed {
+          opacity: 0.44;
+          filter: grayscale(0.55);
+          pointer-events: none;
+          user-select: none;
+          transition: opacity 0.18s ease, filter 0.18s ease;
+        }
       `;
+      syncWeCompatExternalStyles();
     }
 
     // -----------------------------------------------------------------------
@@ -6136,6 +6381,7 @@ window.__ModuleLoader__.load({
     }
 
     function applyAll() {
+      startWeCompatObserver();
       applyVisualStyles();
       applyCustomCss();
       ensureWallpaperLayer();
@@ -6245,17 +6491,18 @@ window.__ModuleLoader__.load({
 
     async function loadLargeFileForSidebar(bsCtx, relPath, scope, signal) {
       const absPath = await resolveSidebarAbsPath(bsCtx, relPath, scope, signal);
+      const sessionId = typeof scope?.sessionId === 'string' ? scope.sessionId : '';
       const res = await fetch(`${API_BASE}/file/meta`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: absPath }),
+        body: JSON.stringify({ path: absPath, sessionId }),
         signal
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || `大文件索引建立失败 (HTTP ${res.status})`);
       }
-      return data;
+      return { ...data, sessionId };
     }
 
     /** 接管 dsh-better-sidebar 的 >5MB 非二进制大文件行级视口虚拟查看器 */
@@ -6336,7 +6583,7 @@ window.__ModuleLoader__.load({
           const res = await fetch(`${API_BASE}/file/slice`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: targetPath, startLine: chunkIdx * CHUNK_LINES, count: CHUNK_LINES })
+            body: JSON.stringify({ path: targetPath, sessionId: meta?.sessionId || '', startLine: chunkIdx * CHUNK_LINES, count: CHUNK_LINES })
           });
           const data = await res.json();
           if (res.ok && data.ok && activePathRef.current === targetPath) {
@@ -6379,7 +6626,7 @@ window.__ModuleLoader__.load({
           const res = await fetch(`${API_BASE}/file/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: meta.path, query: searchQ.trim(), maxHits: 200 })
+            body: JSON.stringify({ path: meta.path, sessionId: meta?.sessionId || '', query: searchQ.trim(), maxHits: 200 })
           });
           const data = await res.json();
           if (res.ok && data.ok) {
@@ -6973,6 +7220,48 @@ window.__ModuleLoader__.load({
         composerIslandStore.getSnapshot,
         composerIslandStore.getSnapshot
       );
+      const weCompat = React.useSyncExternalStore(
+        weCompatStore.subscribe,
+        weCompatStore.getSnapshot,
+        weCompatStore.getSnapshot
+      );
+      const renderWeCompatSwitch = (moduleLabel, configKey, azureDesc, weDesc) => {
+        if (!weCompat.installed) return null;
+        const azureOwned = cfg[configKey] !== false;
+        return jsxs('div', {
+          className: 'dsh-sg-compat-bar',
+          'data-mode': azureOwned ? 'azure' : 'we',
+          children: [
+            jsxs('div', {
+              className: 'dsh-sg-compat-head',
+              children: [
+                jsx('span', { className: 'dsh-sg-compat-title', children: `🤝 Wallpaper Engine 共存 · ${moduleLabel}` }),
+                jsxs('div', {
+                  className: 'dsh-sg-compat-seg',
+                  children: [
+                    jsx('button', {
+                      type: 'button',
+                      'data-active': azureOwned ? '1' : '0',
+                      onClick: () => updateConfig({ [configKey]: true }, true),
+                      children: '由苍蓝琉璃控制'
+                    }),
+                    jsx('button', {
+                      type: 'button',
+                      'data-active': !azureOwned ? '1' : '0',
+                      onClick: () => updateConfig({ [configKey]: false }, true),
+                      children: '由 Wallpaper Engine 控制'
+                    })
+                  ]
+                })
+              ]
+            }),
+            jsx('div', {
+              className: 'dsh-sg-compat-desc',
+              children: azureOwned ? azureDesc : weDesc
+            })
+          ]
+        });
+      };
       React.useEffect(() => {
         if (activeTab === 'layout') composerIslandStore.rescan();
       }, [activeTab]);
@@ -7880,10 +8169,29 @@ window.__ModuleLoader__.load({
 
           activeTab === 'wallpaper' ? jsxs('div', {
             children: [
-              jsxs('div', {
-                className: 'dsh-sg-card',
+              weCompat.wallpaperActive ? jsxs('div', {
+                className: 'dsh-sg-compat-bar',
+                'data-mode': 'we',
                 children: [
-                  jsx('h4', { children: '图片与视频壁纸' }),
+                  jsxs('div', {
+                    className: 'dsh-sg-compat-head',
+                    children: [
+                      jsx('span', { className: 'dsh-sg-compat-title', children: '🤝 Wallpaper Engine 壁纸运行中 · 已自动让位' })
+                    ]
+                  }),
+                  jsx('div', {
+                    className: 'dsh-sg-compat-desc',
+                    children: '检测到 Wallpaper Engine 插件正在显示壁纸，苍蓝琉璃的壁纸与视差层已自动暂停，优先保证 Wallpaper Engine 壁纸正常使用；在那边关闭壁纸后将自动恢复。'
+                  })
+                ]
+              }) : null,
+              jsxs('div', {
+                className: weCompat.wallpaperActive ? 'dsh-sg-compat-dimmed' : '',
+                children: [
+                  jsxs('div', {
+                    className: 'dsh-sg-card',
+                    children: [
+                      jsx('h4', { children: '图片与视频壁纸' }),
                   toggleRow('启用自定义壁纸', '自动透明化 DSH 外框，壁纸即时透出', 'wallpaperEnabled'),
                   jsxs('div', {
                     className: 'dsh-sg-row',
@@ -8059,15 +8367,26 @@ window.__ModuleLoader__.load({
                   toggleRow('界面元素跟随偏移', '聊天区、侧栏与输入框随视差轻挪（微幅纵深）', 'parallaxUiFollow')
                 ]
               })
+                ]
+              })
             ]
           }) : null,
 
           activeTab === 'glass' ? jsxs('div', {
             children: [
+              renderWeCompatSwitch(
+                '毛玻璃质感',
+                'weControlGlass',
+                '当前由苍蓝琉璃控制分区毛玻璃，已自动屏蔽 Wallpaper Engine 的叠加玻璃样式。',
+                '当前毛玻璃质感由 Wallpaper Engine 插件控制，下方设置已暂停并变灰。'
+              ),
               jsxs('div', {
-                className: 'dsh-sg-card',
+                className: (weCompat.installed && cfg.weControlGlass === false) ? 'dsh-sg-compat-dimmed' : '',
                 children: [
-                  jsx('h4', { children: '一键配置与自定义预设' }),
+                  jsxs('div', {
+                    className: 'dsh-sg-card',
+                    children: [
+                      jsx('h4', { children: '一键配置与自定义预设' }),
                   jsxs('div', {
                     className: 'dsh-sg-chips',
                     style: { marginBottom: '10px' },
@@ -8191,15 +8510,26 @@ window.__ModuleLoader__.load({
                   rangeRow('代码 Diff 区域模糊半径', 'glassDiffBlurPx', 0, 32, 1, 'px')
                 ]
               })
+                ]
+              })
             ]
           }) : null,
 
           activeTab === 'color' ? jsxs('div', {
             children: [
+              renderWeCompatSwitch(
+                '色彩、文本改色与字体',
+                'weControlColor',
+                '当前由苍蓝琉璃控制界面配色、文本改色、字体与光标，已自动屏蔽 Wallpaper Engine 的对应样式。',
+                '当前色彩与字体由 Wallpaper Engine 插件控制，下方设置已暂停并变灰。'
+              ),
               jsxs('div', {
-                className: 'dsh-sg-card',
+                className: (weCompat.installed && cfg.weControlColor === false) ? 'dsh-sg-compat-dimmed' : '',
                 children: [
-                  jsx('h4', { children: '一键配色主题与自定义预设' }),
+                  jsxs('div', {
+                    className: 'dsh-sg-card',
+                    children: [
+                      jsx('h4', { children: '一键配色主题与自定义预设' }),
                   jsxs('div', {
                     className: 'dsh-sg-sub',
                     style: { marginBottom: '8px' },
@@ -8330,6 +8660,8 @@ window.__ModuleLoader__.load({
                   rangeRow('正文字号', 'fontSizePx', 12, 20, 1, 'px'),
                   rangeRow('正文行高', 'lineHeight', 1.35, 2.1, 0.05, ''),
                   rangeRow('代码块字号', 'codeFontSizePx', 11, 18, 1, 'px')
+                ]
+              })
                 ]
               })
             ]
@@ -8579,7 +8911,16 @@ window.__ModuleLoader__.load({
                 className: 'dsh-sg-card',
                 children: [
                   jsx('h4', { children: '自定义会话头像（支持 1:1 裁切与多张切换）' }),
-                  (pendingDelete?.kind === 'user-avatar' || pendingDelete?.kind === 'assistant-avatar') ? jsxs('div', {
+                  renderWeCompatSwitch(
+                    '自定义会话头像',
+                    'weControlAvatar',
+                    '当前由苍蓝琉璃控制会话头像，已自动屏蔽 Wallpaper Engine 的头像节点。',
+                    '当前会话头像由 Wallpaper Engine 插件控制，下方头像设置已暂停并变灰。'
+                  ),
+                  jsxs('div', {
+                    className: (weCompat.installed && cfg.weControlAvatar === false) ? 'dsh-sg-compat-dimmed' : '',
+                    children: [
+                      (pendingDelete?.kind === 'user-avatar' || pendingDelete?.kind === 'assistant-avatar') ? jsxs('div', {
                     className: 'dsh-sg-confirm-bar',
                     children: [
                       jsx('span', { children: `⚠️ 确定删除${pendingDelete.kind === 'user-avatar' ? '用户' : '助手'}头像「${pendingDelete.name}」吗？` }),
@@ -8727,6 +9068,8 @@ window.__ModuleLoader__.load({
                       )
                     ]
                   }) : null
+                    ]
+                  })
                 ]
               })
             ]
