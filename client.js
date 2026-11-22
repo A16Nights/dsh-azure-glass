@@ -2907,6 +2907,7 @@ window.__ModuleLoader__.load({
         /* 合并式锚点轨道（无背景无边框，垂直居中，悬停显示Antigravity风格预览卡片） */
         [data-sg-native-rail-hidden="1"] {
           opacity: 0 !important;
+          visibility: hidden !important;
           pointer-events: none !important;
         }
         #dsh-sg-anchor-rail {
@@ -4128,17 +4129,68 @@ window.__ModuleLoader__.load({
       stats.collapsedCodes = collapsedCount;
     }
 
+    let cachedNativeRailSelectors = '';
+    function ensureNativeRailHideCss() {
+      const found = new Set();
+      try {
+        const styleEl = document.querySelector('style[data-plugin-css*="TurnNavigator.module.css"]');
+        const cssText = styleEl ? (styleEl.textContent || '') : '';
+        if (cssText) {
+          const re = /\.([A-Za-z0-9_-]+_(?:frame|slot))\b/g;
+          let m;
+          while ((m = re.exec(cssText)) !== null) found.add(`.${m[1]}`);
+        }
+      } catch {}
+
+      const selectors = [
+        ...Array.from(found),
+        'nav[class*="_frame"]:has([class*="_marks"])',
+        'div[class*="_slot"]:has(> nav[class*="_frame"] [class*="_marks"])',
+      ];
+      const key = selectors.join(',');
+      if (key === cachedNativeRailSelectors && document.getElementById('dsh-sg-native-rail-css')) {
+        return Array.from(found);
+      }
+      cachedNativeRailSelectors = key;
+
+      let tag = document.getElementById('dsh-sg-native-rail-css');
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = 'dsh-sg-native-rail-css';
+        (document.head || document.documentElement).appendChild(tag);
+      }
+      const ruleSelectors = selectors.map((s) => `html[data-sg-anchor-rail-active="1"] ${s}`).join(',\n');
+      tag.textContent = `${ruleSelectors} {\n  opacity: 0 !important;\n  visibility: hidden !important;\n  pointer-events: none !important;\n}`;
+      return Array.from(found);
+    }
+
     /** 定位并隐藏 DSH 原生右侧横杠轨道（TurnNavigator），以便由我们的Antigravity合并式轨道无缝接管 */
     function syncNativeRailVisibility(scrollEl, hide) {
       if (!hide) {
+        document.documentElement.removeAttribute('data-sg-anchor-rail-active');
         for (const el of document.querySelectorAll('[data-sg-native-rail-hidden="1"]')) {
           el.removeAttribute('data-sg-native-rail-hidden');
         }
         return;
       }
+      document.documentElement.setAttribute('data-sg-anchor-rail-active', '1');
+      const nativeClassSelectors = ensureNativeRailHideCss();
       if (!scrollEl) return;
       const sRect = scrollEl.getBoundingClientRect();
       const marked = new Set();
+
+      // 优先精准命中 DSH 原生 TurnNavigator 节点
+      for (const sel of nativeClassSelectors) {
+        for (const el of document.querySelectorAll(sel)) marked.add(el);
+      }
+      for (const nav of document.querySelectorAll('nav[class*="_frame"]')) {
+        if (nav.querySelector('[class*="_marks"], [class*="_mark"]')) {
+          marked.add(nav);
+          if (nav.parentElement && /_slot\b/.test(nav.parentElement.className || '')) {
+            marked.add(nav.parentElement);
+          }
+        }
+      }
 
       const looksLikeNativeRail = (el, r) => {
         if (r.width < 4 || r.width > 64 || r.height < 12) return false;
