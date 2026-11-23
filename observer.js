@@ -821,6 +821,128 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
     }
   }
 
+  const upstreamWindowCache = new Map();
+  const UPSTREAM_WIN_TTL_MS = 30 * 60 * 1000;
+
+  function extractContextWindowFromObj(obj) {
+    if (!obj || typeof obj !== 'object') return 0;
+    const candidates = [
+      obj.contextWindow,
+      obj.context_window,
+      obj.contextLength,
+      obj.context_length,
+      obj.maxContextTokens,
+      obj.max_context_tokens,
+      obj.maxContextLength,
+      obj.max_context_length,
+      obj.max_model_len,
+      obj.inputTokenLimit,
+      obj.input_token_limit,
+      obj.top_provider?.context_length,
+      obj.limits?.context,
+      obj.limit?.context,
+    ];
+    for (const v of candidates) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 1024 && n <= 10000000) return Math.round(n);
+    }
+    return 0;
+  }
+
+  function findHostProviderInfo(provider, model) {
+    let baseUrl = '';
+    let apiKey = '';
+    let hostWindow = 0;
+    try {
+      const candidates = [
+        typeof ctx.get === 'function' ? ctx.get('models') : ctx.models,
+        typeof ctx.get === 'function' ? ctx.get('providers') : ctx.providers,
+        typeof ctx.get === 'function' ? ctx.get('modelRegistry') : ctx.modelRegistry,
+      ].filter(Boolean);
+
+      for (const svc of candidates) {
+        // Try model metadata lookup first
+        if (typeof svc.getModel === 'function') {
+          const m = svc.getModel(provider, model) || svc.getModel(model);
+          const w = extractContextWindowFromObj(m);
+          if (w > 0) hostWindow = w;
+        }
+        if (typeof svc.listModels === 'function' && !hostWindow) {
+          const list = svc.listModels();
+          if (Array.isArray(list)) {
+            const hit = list.find((m) => (m?.id === model || m?.model === model) && (!provider || !m?.provider || m.provider === provider));
+            const w = extractContextWindowFromObj(hit);
+            if (w > 0) hostWindow = w;
+          }
+        }
+        // Try provider baseURL / apiKey lookup
+        const pObj = typeof svc.getProvider === 'function'
+          ? svc.getProvider(provider)
+          : (typeof svc.get === 'function' ? svc.get(provider) : svc?.[provider]);
+        if (pObj && typeof pObj === 'object') {
+          if (!baseUrl) baseUrl = String(pObj.baseURL || pObj.baseUrl || pObj.endpoint || pObj.url || '').trim();
+          if (!apiKey) apiKey = String(pObj.apiKey || pObj.api_key || pObj.token || '').trim();
+          if (!hostWindow && Array.isArray(pObj.models)) {
+            const hit = pObj.models.find((m) => m?.id === model || m?.name === model || m?.model === model);
+            const w = extractContextWindowFromObj(hit);
+            if (w > 0) hostWindow = w;
+          }
+        }
+      }
+    } catch {}
+    return { baseUrl, apiKey, hostWindow };
+  }
+
+  async function resolveUpstreamContextWindow(provider, model) {
+    const p = String(provider || '').trim();
+    const m = String(model || '').trim();
+    if (!m) return 0;
+
+    const cacheKey = `${p}::${m}`;
+    const cached = upstreamWindowCache.get(cacheKey);
+    if (cached && (Date.now() - cached.at) < UPSTREAM_WIN_TTL_MS) {
+      return cached.win;
+    }
+
+    const { baseUrl, apiKey, hostWindow } = findHostProviderInfo(p, m);
+    if (hostWindow > 0) {
+      upstreamWindowCache.set(cacheKey, { at: Date.now(), win: hostWindow });
+      return hostWindow;
+    }
+
+    if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
+      upstreamWindowCache.set(cacheKey, { at: Date.now(), win: 0 });
+      return 0;
+    }
+
+    try {
+      const cleanBase = baseUrl.replace(/\/+$/, '');
+      const modelsUrl = /\/models$/i.test(cleanBase)
+        ? cleanBase
+        : (/\/v1$/i.test(cleanBase) ? `${cleanBase}/models` : `${cleanBase}/v1/models`);
+      const headers = { Accept: 'application/json' };
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+      const res = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.models) ? json.models : (Array.isArray(json) ? json : []));
+        const targetLower = m.toLowerCase();
+        const hit = list.find((item) => {
+          const id = String(item?.id || item?.name || '').toLowerCase();
+          return id === targetLower || id.endsWith(`/${targetLower}`);
+        });
+        const win = extractContextWindowFromObj(hit);
+        if (win > 0) {
+          upstreamWindowCache.set(cacheKey, { at: Date.now(), win });
+          return win;
+        }
+      }
+    } catch {}
+
+    upstreamWindowCache.set(cacheKey, { at: Date.now(), win: 0 });
+    return 0;
+  }
+
   const disposeObserverRoute = ctx.webServer.register({
     kind: 'exact',
     path: '/api/azure-glass/observer/telemetry',
@@ -833,6 +955,13 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       const forceBalance = urlObj.searchParams.get('refresh') === '1';
 
       const telemetry = analyzeSession(sessionId);
+      if (telemetry && telemetry.model) {
+        const upstreamWin = await resolveUpstreamContextWindow(telemetry.provider, telemetry.model);
+        if (upstreamWin > 0 && upstreamWin !== telemetry.contextWindow) {
+          telemetry.contextWindow = upstreamWin;
+          telemetry.contextPct = Math.min(100, Math.round(((telemetry.currentContextTokens || 0) / upstreamWin) * 1000) / 10);
+        }
+      }
       let balance = null;
       if (withBalance && telemetry.provider) {
         balance = await fetchProviderBalance(telemetry.provider, forceBalance);
