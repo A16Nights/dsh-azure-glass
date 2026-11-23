@@ -808,7 +808,7 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
     }
   }
 
-  ctx.webServer.register({
+  const disposeObserverRoute = ctx.webServer.register({
     kind: 'exact',
     path: '/api/azure-glass/observer/telemetry',
     handler: withRequestGuard(ctx, async (req, res) => {
@@ -827,4 +827,11 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       sendJson(res, 200, { ...telemetry, balance });
     }),
   });
+  if (typeof disposeObserverRoute === 'function') {
+    if (typeof ctx.effect === 'function') {
+      ctx.effect(() => disposeObserverRoute, 'dsh-azure-glass: observer route');
+    } else if (typeof ctx.on === 'function') {
+      ctx.on('dispose', disposeObserverRoute);
+    }
+  }
 }

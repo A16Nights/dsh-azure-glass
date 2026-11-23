@@ -1494,31 +1494,49 @@ async function handleMermaidBundle(req, res) {
 
 export function apply(ctx) {
   ctx.logger?.info?.(`[dsh-azure-glass] store dir: ${STORE_DIR}`);
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/config', handler: withRequestGuard(ctx, handleConfig) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/version', handler: withRequestGuard(ctx, handleVersion) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/upload', handler: withRequestGuard(ctx, handleWallpaperUpload) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/current', handler: withRequestGuard(ctx, handleWallpaperCurrent) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/list', handler: withRequestGuard(ctx, handleWallpaperList) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/select', handler: withRequestGuard(ctx, handleWallpaperSelect) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/delete', handler: withRequestGuard(ctx, handleWallpaperDelete) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/wallpaper/item', handler: withRequestGuard(ctx, handleWallpaperItem) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/meta', handler: withRequestGuard(ctx, handleFileMeta) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/slice', handler: withRequestGuard(ctx, handleFileSlice) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/file/search', handler: withRequestGuard(ctx, handleFileSearch) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/list', handler: withRequestGuard(ctx, handleSkinsList) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/css', handler: withRequestGuard(ctx, handleSkinsCss) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/asset', handler: withRequestGuard(ctx, handleSkinsAsset) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/import', handler: withRequestGuard(ctx, handleSkinsImport) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/skins/delete', handler: withRequestGuard(ctx, handleSkinsDelete) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/list', handler: withRequestGuard(ctx, handlePluginsList) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/check', handler: withRequestGuard(ctx, handlePluginsCheck) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/toggle', handler: withRequestGuard(ctx, handlePluginsToggle) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/update', handler: withRequestGuard(ctx, handlePluginsUpdate) });
-  ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/mermaid.js', handler: withRequestGuard(ctx, handleMermaidBundle) });
+  const routeDisposers = [];
+  const registerRoute = (def) => {
+    const dispose = ctx.webServer.register(def);
+    if (typeof dispose === 'function') routeDisposers.push(dispose);
+    return dispose;
+  };
+  const disposeAllRoutes = () => {
+    while (routeDisposers.length > 0) {
+      const fn = routeDisposers.pop();
+      try { fn(); } catch {}
+    }
+  };
+  if (typeof ctx.effect === 'function') {
+    ctx.effect(() => disposeAllRoutes, 'dsh-azure-glass: webServer routes');
+  } else if (typeof ctx.on === 'function') {
+    ctx.on('dispose', disposeAllRoutes);
+  }
+
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/config', handler: withRequestGuard(ctx, handleConfig) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/version', handler: withRequestGuard(ctx, handleVersion) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/wallpaper/upload', handler: withRequestGuard(ctx, handleWallpaperUpload) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/wallpaper/current', handler: withRequestGuard(ctx, handleWallpaperCurrent) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/wallpaper/list', handler: withRequestGuard(ctx, handleWallpaperList) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/wallpaper/select', handler: withRequestGuard(ctx, handleWallpaperSelect) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/wallpaper/delete', handler: withRequestGuard(ctx, handleWallpaperDelete) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/wallpaper/item', handler: withRequestGuard(ctx, handleWallpaperItem) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/file/meta', handler: withRequestGuard(ctx, handleFileMeta) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/file/slice', handler: withRequestGuard(ctx, handleFileSlice) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/file/search', handler: withRequestGuard(ctx, handleFileSearch) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/skins/list', handler: withRequestGuard(ctx, handleSkinsList) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/skins/css', handler: withRequestGuard(ctx, handleSkinsCss) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/skins/asset', handler: withRequestGuard(ctx, handleSkinsAsset) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/skins/import', handler: withRequestGuard(ctx, handleSkinsImport) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/skins/delete', handler: withRequestGuard(ctx, handleSkinsDelete) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/plugins/list', handler: withRequestGuard(ctx, handlePluginsList) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/plugins/check', handler: withRequestGuard(ctx, handlePluginsCheck) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/plugins/toggle', handler: withRequestGuard(ctx, handlePluginsToggle) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/plugins/update', handler: withRequestGuard(ctx, handlePluginsUpdate) });
+  registerRoute({ kind: 'exact', path: '/api/azure-glass/mermaid.js', handler: withRequestGuard(ctx, handleMermaidBundle) });
 
   // 内置效率增强模块管理（cookie-guard / drag-and-drop / chat-link-actions / conversation-search）
   const addonsManager = createAddonsManager(ctx, readConfigFile);
-  ctx.webServer.register({
+  registerRoute({
     kind: 'exact',
     path: '/api/azure-glass/addons/status',
     handler: withRequestGuard(ctx, (req, res) => {
@@ -1527,7 +1545,7 @@ export function apply(ctx) {
       sendJson(res, 200, { ok: true, status: addonsManager.getStatus() });
     })
   });
-  ctx.webServer.register({
+  registerRoute({
     kind: 'exact',
     path: '/api/azure-glass/addons/sync',
     handler: withRequestGuard(ctx, async (req, res) => {
@@ -1537,7 +1555,7 @@ export function apply(ctx) {
       sendJson(res, 200, { ok: true, status: addonsManager.getStatus() });
     })
   });
-  ctx.webServer.register({
+  registerRoute({
     kind: 'exact',
     path: '/api/azure-glass/addons/client',
     handler: withRequestGuard(ctx, (req, res) => {
