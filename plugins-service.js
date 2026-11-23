@@ -134,6 +134,41 @@ function classifySource(spec) {
   return { kind: 'npm', spec: s };
 }
 
+function normalizeRepoUrl(raw) {
+  if (!raw) return '';
+  let s = typeof raw === 'string' ? raw.trim() : (typeof raw?.url === 'string' ? raw.url.trim() : '');
+  if (!s) return '';
+  s = s.replace(/^git\+/, '');
+  if (/^github:/i.test(s)) {
+    s = `https://github.com/${s.replace(/^github:/i, '').replace(/^\/+/, '')}`;
+  } else if (/^git@github\.com:/i.test(s)) {
+    s = `https://github.com/${s.replace(/^git@github\.com:/i, '')}`;
+  } else if (/^ssh:\/\/git@github\.com\//i.test(s)) {
+    s = `https://github.com/${s.replace(/^ssh:\/\/git@github\.com\//i, '')}`;
+  } else if (/^git:\/\//i.test(s)) {
+    s = `https://${s.slice(6)}`;
+  } else if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(s)) {
+    s = `https://github.com/${s}`;
+  }
+  s = s.replace(/\.git$/i, '').replace(/#.*$/, '');
+  if (/^https?:\/\//i.test(s)) return s;
+  return '';
+}
+
+function resolvePluginRepoUrl(pkgMeta, src, pkgName) {
+  const fromRepo = normalizeRepoUrl(pkgMeta?.repository);
+  if (fromRepo) return fromRepo;
+  const fromHome = normalizeRepoUrl(pkgMeta?.homepage);
+  if (fromHome) return fromHome;
+  if (src?.kind === 'github' && src.owner && src.repo) {
+    return `https://github.com/${src.owner}/${src.repo}`;
+  }
+  if (src?.kind === 'npm' && pkgName) {
+    return `https://www.npmjs.com/package/${encodeURIComponent(pkgName).replace(/%2F/gi, '/')}`;
+  }
+  return '';
+}
+
 export function listInstalledPlugins(pluginDir) {
   const prof = resolveProfileContext(pluginDir);
   if (!prof) return { ok: false, error: 'DSH profile directory not found', plugins: [] };
@@ -155,14 +190,17 @@ export function listInstalledPlugins(pluginDir) {
     let installedVersion = '';
     let description = '';
     let requiresDsh = '';
+    let pkgMeta = null;
     try {
       const p = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
+      pkgMeta = p;
       installedVersion = typeof p.version === 'string' ? p.version : '';
       description = typeof p.description === 'string' ? p.description.slice(0, 140) : '';
       requiresDsh = p?.dsh?.engines?.dsh || p?.engines?.dsh || '';
     } catch {}
 
     const src = classifySource(spec);
+    const repoUrl = resolvePluginRepoUrl(pkgMeta, src, pkgName);
     const rowIds = resolvePluginRowIds(prof.nodeModulesDir, pkgName);
     let enabled = true;
     if (disabledMap.byName.has(pkgName)) {
@@ -180,6 +218,7 @@ export function listInstalledPlugins(pluginDir) {
       spec: String(spec),
       sourceKind: src.kind,
       githubRepo: src.kind === 'github' ? `${src.owner}/${src.repo}` : '',
+      repoUrl,
       installedVersion: installedVersion || String(spec).replace(/^[\^~]/, ''),
       description,
       requiresDsh,
@@ -332,6 +371,23 @@ export async function togglePluginEnabled(ctx, pluginDir, pkgName, enabled) {
   }
 }
 
+function resolveBundledPnpmScript() {
+  const dshHome = resolveDshHome();
+  const execDir = path.dirname(process.execPath || '');
+  const candidates = [
+    path.join(dshHome, 'dsh-runtimes', 'dsh-primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.cjs'),
+    path.join(dshHome, 'dsh-runtimes', 'dsh-primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'),
+    execDir ? path.resolve(execDir, '..', '..', 'pnpm', 'bin', 'pnpm.cjs') : '',
+    execDir ? path.resolve(execDir, '..', '..', 'pnpm', 'bin', 'pnpm.mjs') : ''
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
+  return '';
+}
+
 export async function updateInstalledPlugin(ctx, pluginDir, pkgName) {
   if (!SAFE_PKG_NAME_RE.test(String(pkgName || ''))) {
     return { ok: false, error: 'invalid package name' };
@@ -358,30 +414,83 @@ export async function updateInstalledPlugin(ctx, pluginDir, pkgName) {
     }
   } catch {}
 
-  // 2. Fallback to official `dsh plugin` CLI
   const prof = resolveProfileContext(pluginDir);
   if (!prof) return { ok: false, error: 'profile not found' };
-  try {
-    const bin = process.platform === 'win32' ? 'dsh.cmd' : 'dsh';
-    const { stdout, stderr } = await execFileAsync(bin, ['plugin', '--profile', prof.profileName, 'add', targetSpec], {
-      timeout: 90000,
-      windowsHide: true
-    });
-    delete updateCheckCache.results[pkgName];
-    return {
-      ok: true,
-      pkgName,
-      spec: targetSpec,
-      via: 'cli',
-      needsRestart: true,
-      output: String(stdout || stderr || '').slice(-400)
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err?.stderr ? String(err.stderr).slice(-300) : (err?.message || 'update command failed')
-    };
+
+  const execDir = path.dirname(process.execPath || '');
+  const childEnv = {
+    ...process.env,
+    PATH: execDir ? `${execDir}${path.delimiter}${process.env.PATH || ''}` : (process.env.PATH || '')
+  };
+
+  // 2. Prefer DSH bundled pnpm.cjs via process.execPath (cross-platform, avoids Windows .cmd EINVAL & PATH issues)
+  const pnpmScript = resolveBundledPnpmScript();
+  if (pnpmScript) {
+    try {
+      const { stdout, stderr } = await execFileAsync(process.execPath, [pnpmScript, 'add', targetSpec], {
+        cwd: prof.profileDir,
+        env: childEnv,
+        timeout: 120000,
+        windowsHide: true
+      });
+      delete updateCheckCache.results[pkgName];
+      return {
+        ok: true,
+        pkgName,
+        spec: targetSpec,
+        via: 'bundled-pnpm',
+        needsRestart: true,
+        output: String(stdout || stderr || '').slice(-400)
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.stderr ? String(err.stderr).slice(-320) : (err?.message || 'bundled pnpm update failed')
+      };
+    }
   }
+
+  // 3. Fallback to `dsh plugin` or system `pnpm` (with shell: true on Windows for .cmd shims)
+  const fallbacks = [
+    {
+      via: 'dsh-cli',
+      bin: process.platform === 'win32' ? 'dsh.cmd' : 'dsh',
+      args: ['plugin', '--profile', prof.profileName, 'add', targetSpec],
+      cwd: prof.profileDir
+    },
+    {
+      via: 'system-pnpm',
+      bin: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+      args: ['add', targetSpec],
+      cwd: prof.profileDir
+    }
+  ];
+
+  let lastErr = '未找到可用的 DSH/pnpm 更新程序';
+  for (const fb of fallbacks) {
+    try {
+      const { stdout, stderr } = await execFileAsync(fb.bin, fb.args, {
+        cwd: fb.cwd,
+        env: childEnv,
+        timeout: 120000,
+        windowsHide: true,
+        shell: process.platform === 'win32'
+      });
+      delete updateCheckCache.results[pkgName];
+      return {
+        ok: true,
+        pkgName,
+        spec: targetSpec,
+        via: fb.via,
+        needsRestart: true,
+        output: String(stdout || stderr || '').slice(-400)
+      };
+    } catch (err) {
+      lastErr = err?.stderr ? String(err.stderr).slice(-320) : (err?.message || lastErr);
+    }
+  }
+
+  return { ok: false, error: lastErr };
 }
 
 // ---------------------------------------------------------------------------

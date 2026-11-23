@@ -8,7 +8,7 @@
 </picture>
 
 <p>
-  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.2.0_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.2.0 Beta"></a>
+  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.2.1_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.2.1 Beta"></a>
   <a href="https://github.com/A16Nights/dsh-azure-glass/stargazers"><img src="https://img.shields.io/github/stars/A16Nights/dsh-azure-glass?style=flat-square&label=Stars&color=38bdf8&labelColor=1e293b" alt="Stars"></a>
   <img src="https://img.shields.io/badge/DeepSeek_Harness-Desktop_%7C_Web-8b5cf6?style=flat-square&labelColor=1e293b" alt="DeepSeek Harness">
   <img src="https://img.shields.io/badge/Build_Deps-Zero-06b6d4?style=flat-square&labelColor=1e293b" alt="Zero Build Deps">
@@ -29,7 +29,7 @@
 </div>
 
 > [!WARNING]
-> **Early Beta Release (v0.2.0 Beta)**
+> **Early Beta Release (v0.2.1 Beta)**
 > This plugin is under active development; some features, config schemas, and UI details may evolve. Bug reports and feature ideas are welcome in [Issues](https://github.com/A16Nights/dsh-azure-glass/issues).
 
 **Azure Glass Atelier (`dsh-azure-glass`)** ships with zero build dependencies and dual workshop entry points (**Settings Page** + **Right Sidebar**), combining smooth long-conversation performance, desktop-grade frosted glass visual customization, skin & plugin update management, built-in productivity addons, and a live context observer.

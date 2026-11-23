@@ -45,7 +45,7 @@ function readPluginVersion() {
     const parsed = JSON.parse(raw);
     if (typeof parsed?.version === 'string' && parsed.version.trim()) return parsed.version.trim();
   } catch {}
-  return '0.2.0';
+  return '0.2.1';
 }
 const GITHUB_REPO = 'A16Nights/dsh-azure-glass';
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;

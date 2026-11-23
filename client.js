@@ -21,7 +21,7 @@ window.__ModuleLoader__.load({
     const jsxs = jsxRuntime.jsxs;
 
     const NS = 'dsh-azure-glass';
-    const PLUGIN_VERSION = '0.2.0';
+    const PLUGIN_VERSION = '0.2.1';
     const SECTION_SLOT = 'settings.section';
     const STYLE_ID = 'dsh-azure-glass-style';
     const CACHE_KEY = 'dsh_azure_glass_config_v3';
@@ -3783,6 +3783,52 @@ window.__ModuleLoader__.load({
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
           color: ${fabText};
+          transition: border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        .dsh-sg-card:hover {
+          border-color: ${stUi.hoverBorder};
+          box-shadow: ${isLight
+            ? `0 10px 28px rgba(15, 23, 42, 0.08), 0 0 0 1px ${hexRgba(stUi.p, 0.16)}, 0 4px 18px ${stUi.glowShadow}`
+            : `0 14px 36px rgba(0, 0, 0, 0.42), 0 0 0 1px ${hexRgba(stUi.p, 0.22)}, 0 6px 22px ${stUi.glowShadow}`};
+        }
+        .dsh-sg-subcard {
+          box-sizing: border-box;
+          transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, transform 0.16s ease !important;
+        }
+        .dsh-sg-subcard:hover {
+          border-color: ${stUi.p} !important;
+          box-shadow: 0 0 0 1px ${hexRgba(stUi.p, 0.24)}, 0 6px 18px ${stUi.glowShadow} !important;
+          transform: translateY(-1px);
+        }
+        .dsh-sg-plugin-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12.5px;
+          font-weight: 700;
+          color: ${isLight ? '#0f172a' : '#f1f5f9'};
+          text-decoration: none;
+          word-break: break-all;
+          border-radius: 5px;
+          padding: 0 2px;
+          margin: 0 -2px;
+          transition: color 0.15s ease, text-shadow 0.15s ease;
+        }
+        .dsh-sg-plugin-link:hover {
+          color: ${stUi.p};
+          text-decoration: underline;
+          text-underline-offset: 3px;
+          text-shadow: 0 0 10px ${stUi.glowShadow};
+        }
+        .dsh-sg-plugin-ext {
+          font-size: 11px;
+          opacity: 0.48;
+          line-height: 1;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .dsh-sg-plugin-link:hover .dsh-sg-plugin-ext {
+          opacity: 1;
+          transform: translate(1.5px, -1.5px);
         }
         .dsh-sg-card h4 {
           margin: 0 0 9px 0; font-size: 12.5px; font-weight: 700;
@@ -10275,6 +10321,7 @@ window.__ModuleLoader__.load({
                   const preview = isDark ? (s.previewDark || s.previewLight) : (s.previewLight || s.previewDark);
                   return jsxs('div', {
                     key: s.id,
+                    className: 'dsh-sg-subcard',
                     style: {
                       borderRadius: '10px',
                       border: active ? `1.5px solid ${s.accent || '#38bdf8'}` : '1px solid rgba(148,163,184,0.22)',
@@ -10376,6 +10423,7 @@ window.__ModuleLoader__.load({
                   const active = cfg.activeSkinId === item.id;
                   return jsxs('div', {
                     key: item.id,
+                    className: 'dsh-sg-subcard',
                     style: {
                       padding: '9px 10px',
                       borderRadius: '10px',
@@ -10764,20 +10812,24 @@ window.__ModuleLoader__.load({
                 ]
               }) : null,
               loading ? jsx('div', { className: 'dsh-sg-sub', style: { marginTop: '10px' }, children: '读取插件列表中...' }) : jsx('div', {
-                style: { display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', maxHeight: '420px', overflowY: 'auto' },
+                style: { display: 'flex', flexDirection: 'column', gap: '7px', marginTop: '10px', maxHeight: '420px', overflowY: 'auto', padding: '3px 6px 5px 2px' },
                 children: filtered.map((p) => {
                   const u = p.updateInfo;
                   const busy = busyMap[p.name];
                   const sourceTag = p.sourceKind === 'npm' ? 'npm' : (p.sourceKind === 'github' ? 'GitHub' : (p.sourceKind === 'local-link' ? '本地链接' : '离线包'));
+                  const repoUrl = p.repoUrl
+                    || (p.githubRepo ? `https://github.com/${p.githubRepo}` : '')
+                    || (p.sourceKind === 'npm' ? `https://www.npmjs.com/package/${encodeURIComponent(p.name).replace(/%2F/gi, '/')}` : '');
                   return jsxs('div', {
                     key: p.name,
+                    className: 'dsh-sg-subcard',
                     style: {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: '8px',
                       padding: '8px 10px',
-                      borderRadius: '8px',
+                      borderRadius: '10px',
                       border: u?.hasUpdate ? '1px solid rgba(56,189,248,0.48)' : '1px solid rgba(148,163,184,0.18)',
                       background: p.enabled
                         ? (detectTheme() === 'light' ? 'rgba(255,255,255,0.84)' : 'rgba(15,23,42,0.26)')
@@ -10791,7 +10843,19 @@ window.__ModuleLoader__.load({
                           jsxs('div', {
                             style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
                             children: [
-                              jsx('strong', { style: { fontSize: '12.5px', wordBreak: 'break-all' }, children: p.name }),
+                              repoUrl
+                                ? jsxs('a', {
+                                  className: 'dsh-sg-plugin-link',
+                                  href: repoUrl,
+                                  target: '_blank',
+                                  rel: 'noopener noreferrer',
+                                  title: `打开仓库：${repoUrl}`,
+                                  children: [
+                                    jsx('span', { children: p.name }),
+                                    jsx('span', { className: 'dsh-sg-plugin-ext', 'aria-hidden': 'true', children: '↗' })
+                                  ]
+                                })
+                                : jsx('strong', { style: { fontSize: '12.5px', wordBreak: 'break-all' }, children: p.name }),
                               jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(148,163,184,0.2)' }, children: `v${p.installedVersion}` }),
                               jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: detectTheme() === 'light' ? 'rgba(2,132,199,0.12)' : 'rgba(56,189,248,0.15)', color: detectTheme() === 'light' ? '#0369a1' : '#7dd3fc' }, children: sourceTag }),
                               u?.hasUpdate ? jsx('span', {
@@ -11197,6 +11261,7 @@ window.__ModuleLoader__.load({
                   const on = cfg[it.cfgKey] !== false;
                   return jsxs('div', {
                     key: it.modKey,
+                    className: 'dsh-sg-subcard',
                     style: {
                       display: 'flex',
                       alignItems: 'center',
