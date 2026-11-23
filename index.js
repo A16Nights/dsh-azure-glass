@@ -1345,34 +1345,59 @@ async function handleVersion(req, res) {
     return;
   }
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-    const ghRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=1`, {
-      headers: {
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': `${PLUGIN_ID}/${currentVersion}`
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    if (!ghRes.ok) throw new Error(`HTTP ${ghRes.status}`);
-    const list = await ghRes.json();
-    const latest = Array.isArray(list) && list.length > 0 ? list[0] : null;
-    if (!latest || !latest.tag_name) {
+    let latestVersion = '';
+    let prerelease = true;
+    let releaseUrl = GITHUB_RELEASES_URL;
+
+    // 1. 优先读取 raw.githubusercontent.com 的 package.json（无 60次/小时 匿名 API 限流）
+    try {
+      const rawRes = await fetch(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/package.json`, {
+        headers: { 'User-Agent': `${PLUGIN_ID}/${currentVersion}` },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (rawRes.ok) {
+        const rawPkg = await rawRes.json();
+        if (rawPkg && typeof rawPkg.version === 'string' && rawPkg.version.trim()) {
+          latestVersion = rawPkg.version.replace(/^v/i, '').trim();
+          releaseUrl = `${GITHUB_RELEASES_URL}/tag/v${latestVersion}`;
+        }
+      }
+    } catch {}
+
+    // 2. 兜底查询 GitHub Releases API
+    if (!latestVersion) {
+      const ghRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=1`, {
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': `${PLUGIN_ID}/${currentVersion}`
+        },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (!ghRes.ok) throw new Error(`HTTP ${ghRes.status}`);
+      const list = await ghRes.json();
+      const latest = Array.isArray(list) && list.length > 0 ? list[0] : null;
+      if (latest && latest.tag_name) {
+        latestVersion = String(latest.tag_name).replace(/^v/i, '').trim();
+        prerelease = latest.prerelease === true;
+        if (typeof latest.html_url === 'string' && latest.html_url) releaseUrl = latest.html_url;
+      }
+    }
+
+    if (!latestVersion) {
       const result = { checked: true, hasUpdate: false, latestVersion: currentVersion, prerelease: true, releaseUrl: GITHUB_RELEASES_URL };
       versionCheckCache = { at: now, data: result };
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ ...basePayload, ...result }));
       return;
     }
-    const latestVersion = String(latest.tag_name).replace(/^v/i, '').trim();
+
     const hasUpdate = compareSemver(latestVersion, currentVersion) > 0;
     const result = {
       checked: true,
       hasUpdate,
       latestVersion,
-      prerelease: latest.prerelease === true,
-      releaseUrl: typeof latest.html_url === 'string' && latest.html_url ? latest.html_url : GITHUB_RELEASES_URL
+      prerelease,
+      releaseUrl
     };
     versionCheckCache = { at: now, data: result };
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
