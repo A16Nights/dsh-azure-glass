@@ -8,7 +8,7 @@
 </picture>
 
 <p>
-  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.1.3_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.1.3 Beta"></a>
+  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.1.4_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.1.4 Beta"></a>
   <a href="https://github.com/A16Nights/dsh-azure-glass/stargazers"><img src="https://img.shields.io/github/stars/A16Nights/dsh-azure-glass?style=flat-square&label=Stars&color=38bdf8&labelColor=1e293b" alt="Stars"></a>
   <img src="https://img.shields.io/badge/DeepSeek_Harness-Desktop_%7C_Web-8b5cf6?style=flat-square&labelColor=1e293b" alt="DeepSeek Harness">
   <img src="https://img.shields.io/badge/Build_Deps-Zero-06b6d4?style=flat-square&labelColor=1e293b" alt="Zero Build Deps">
@@ -29,7 +29,7 @@
 </div>
 
 > [!WARNING]
-> **当前处于早期测试阶段（v0.1.3 Beta）**
+> **当前处于早期测试阶段（v0.1.4 Beta）**
 > 本插件仍在持续迭代与打磨中，部分功能、配置结构与界面细节可能会在后续版本中调整。如遇到问题或有改进建议，欢迎在 [Issues](https://github.com/A16Nights/dsh-azure-glass/issues) 反馈。
 
 **苍蓝琉璃工坊（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，兼顾超长对话的丝滑流畅度与高度自由的桌面级毛玻璃视觉定制。
@@ -141,6 +141,18 @@ Antigravity 风格合并式会话锚点轨道（支持左/右侧停靠与悬停�
 - **双端灵活展示**：支持在「仅苍蓝琉璃内显示」与「同时挂载到官方插件页」之间自由切换，并兼容官方插件详情页原生插槽。
 - **可复制更新清单卡片**：检查更新完成后弹出排版清晰的更新版本清单卡片，支持自由框选文本与「📋 一键复制」。
 
+### 🛠️ 9. 效率增强套件（一站式内置 & 防冲突让位）
+- **🍪 Cookie 431 自动防护**：自动放宽监听请求头上限并按预算清理过期 `dsh-auth-*` 登录 Cookie，根治长期使用后 431 导致 Web UI 无法打开的问题（支持自定义多开保留条数）。
+- **📂 拖拽文件生成路径芯片**：将本地文件或文件夹拖入页面任意位置，自动解析真实绝对路径并在输入框上方生成可删除文件芯片，支持不打字一键发送；纯图片保留原生逻辑。
+- **🖱️ 对话文件链接右键菜单**：右键对话中的文件路径或附件弹出自绘主题菜单，支持引用到对话、在资源管理器中查看、复制路径、发送到…以及自定义入口。
+- **🔎 会话全文搜索与跳转**：在输入框旁工具栏提供放大镜入口，后台 Worker 索引本地会话日志，支持当前/全部会话的宽松、精确、正则三态检索，点击结果自动跨会话定位并高亮。
+- **自动防冲突让位**：每项均可在工坊「🛠️ 效率增强」中独立热启停；若检测到本机已启用同名独立插件，苍蓝琉璃会自动让位避免重复注册。
+
+### 🔭 10. 苍蓝上下文观察窗与实时余额
+- **输入框下方紧凑统计胶囊条**：实时展示当前会话上下文长度、Token 消耗、缓存命中率、压缩次数与账户实时余额。
+- **多源压缩次数统计**：自动合并统计 DSH 官方压缩与 `billion-context` 压缩/解压明细。
+- **独立弹窗背景定制**：观察窗浮层支持独立调节背景透明度（`15% ~ 98%`）、毛玻璃模糊半径（`0px ~ 40px`）与自定义底色，互不干扰其他系统弹窗。
+
 <h2 id="coexist">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/sec-coexist-dark.svg">
@@ -210,6 +222,17 @@ dsh plugin add github:A16Nights/dsh-azure-glass
 - **同源鉴权与工作区访问保护**：插件后端路由统一接入 DSH 会话鉴权与同源回环校验，大文件流式预览严格限制在当前会话工作区目录内。
 
 </details>
+
+## 🙏 灵感与致谢
+
+本项目在演进过程中参考并致敬了以下优秀的开源 DSH / Antigravity 社区作品（按字母顺序）：
+
+- [`@omdsh-dev/dsh-drag-and-drop`](https://github.com/AKIRACOD/dsh-drag-and-drop) — 本地文件/文件夹拖拽路径解析与文件芯片交互
+- [`antigravity-observer`](https://github.com/yunjuanyunshu114-byte/antigravity-observer) — 紧凑式上下文观察窗与统计胶囊栏视觉灵感
+- [`dsh-chat-link-actions`](https://github.com/regrevia/dsh-chat-link-actions) — 对话文件链接自绘右键菜单与自定义入口设计
+- [`dsh-conversation-search`](https://github.com/FunnySnake11111/dsh-conversation-search) — 本地会话日志后台索引与跨会话全文检索定位
+- [`dsh-cookie-guard`](https://github.com/bigfatdsh/dsh-cookie-guard) — DSH 认证 Cookie 431 自动清理与多开预算防护
+- [`dsh-web-all`](https://github.com/linxin666/dsh-web-all) — 皮肤工坊、Mermaid 渲染与插件更新管理思路参考
 
 ---
 

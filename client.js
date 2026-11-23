@@ -196,7 +196,20 @@ window.__ModuleLoader__.load({
       mermaidEnabled: true,
       activeSkinId: '',
       skinRespectWe: true,
-      pluginUpdaterPlacement: 'both'
+      pluginUpdaterPlacement: 'both',
+
+      cookieGuardEnabled: true,
+      cookieGuardMaxHeaderBytes: 262144,
+      cookieGuardKeepOtherCookies: 3,
+      cookieGuardCookieBudgetBytes: 4096,
+      dragAndDropEnabled: true,
+      chatLinkActionsEnabled: true,
+      conversationSearchEnabled: true,
+      observerEnabled: true,
+      observerShowBalance: true,
+      observerModalOpacity: 0.86,
+      observerModalBlurPx: 22,
+      observerModalBgColor: '#1a1d29'
     };
 
     const STUDIO_UI_OFFICIAL_THEMES = [
@@ -7177,6 +7190,7 @@ window.__ModuleLoader__.load({
       { id: 'color', label: '🎨 色彩排版' },
       { id: 'layout', label: '📑 Antigravity布局' },
       { id: 'fx', label: '✨ 特效头像' },
+      { id: 'addons', label: '🛠️ 效率增强' },
       { id: 'plugins', label: '🔌 插件更新' },
       { id: 'css', label: '🧩 自定义 CSS' }
     ];
@@ -9858,6 +9872,11 @@ window.__ModuleLoader__.load({
             toggleRow
           }) : null,
 
+          activeTab === 'addons' ? jsx(BuiltInAddonsTab, {
+            cfg,
+            updateConfig
+          }) : null,
+
           activeTab === 'plugins' ? jsx(PluginManagerTab, {
             cfg,
             updateConfig
@@ -9894,9 +9913,9 @@ window.__ModuleLoader__.load({
                   fontFamily: 'Consolas, "JetBrains Mono", monospace',
                   fontSize: '12px',
                   lineHeight: '1.6',
-                  color: 'inherit',
-                  background: 'rgba(10, 14, 22, 0.72)',
-                  border: '1px solid rgba(148, 163, 184, 0.3)',
+                  color: detectTheme() === 'light' ? '#0f172a' : '#e2e8f0',
+                  background: detectTheme() === 'light' ? 'rgba(255, 255, 255, 0.92)' : 'rgba(10, 14, 22, 0.72)',
+                  border: detectTheme() === 'light' ? '1px solid rgba(148, 163, 184, 0.45)' : '1px solid rgba(148, 163, 184, 0.3)',
                   borderRadius: '8px',
                   resize: 'vertical'
                 }
@@ -10098,7 +10117,9 @@ window.__ModuleLoader__.load({
                     style: {
                       borderRadius: '10px',
                       border: active ? `1.5px solid ${s.accent || '#38bdf8'}` : '1px solid rgba(148,163,184,0.22)',
-                      background: active ? 'rgba(56,189,248,0.10)' : 'rgba(15,23,42,0.25)',
+                      background: active
+                        ? (detectTheme() === 'light' ? 'rgba(59,130,246,0.12)' : 'rgba(56,189,248,0.10)')
+                        : (detectTheme() === 'light' ? 'rgba(255,255,255,0.84)' : 'rgba(15,23,42,0.25)'),
                       overflow: 'hidden',
                       display: 'flex',
                       flexDirection: 'column'
@@ -10198,7 +10219,9 @@ window.__ModuleLoader__.load({
                       padding: '9px 10px',
                       borderRadius: '10px',
                       border: active ? `1.5px solid ${item.accent}` : '1px solid rgba(148,163,184,0.22)',
-                      background: active ? 'rgba(56,189,248,0.10)' : 'rgba(15,23,42,0.22)',
+                      background: active
+                        ? (detectTheme() === 'light' ? 'rgba(59,130,246,0.12)' : 'rgba(56,189,248,0.10)')
+                        : (detectTheme() === 'light' ? 'rgba(255,255,255,0.84)' : 'rgba(15,23,42,0.22)'),
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '5px'
@@ -10257,12 +10280,12 @@ window.__ModuleLoader__.load({
                     padding: '8px 10px',
                     borderRadius: '8px',
                     border: '1px solid rgba(148,163,184,0.2)',
-                    background: 'rgba(15,23,42,0.2)',
+                    background: detectTheme() === 'light' ? 'rgba(255,255,255,0.84)' : 'rgba(15,23,42,0.2)',
                     textDecoration: 'none',
                     color: 'inherit'
                   },
                   children: [
-                    jsx('strong', { style: { fontSize: '12.5px', color: '#7dd3fc' }, children: `${site.name} ↗` }),
+                    jsx('strong', { style: { fontSize: '12.5px', color: detectTheme() === 'light' ? '#0369a1' : '#7dd3fc' }, children: `${site.name} ↗` }),
                     jsx('span', { className: 'dsh-sg-sub', style: { fontSize: '11px' }, children: site.desc })
                   ]
                 }))
@@ -10487,7 +10510,7 @@ window.__ModuleLoader__.load({
                   boxSizing: 'border-box',
                   borderRadius: '8px',
                   border: '1px solid rgba(148,163,184,0.28)',
-                  background: 'rgba(15,23,42,0.35)',
+                  background: detectTheme() === 'light' ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.35)',
                   color: 'inherit',
                   fontSize: '12px'
                 }
@@ -10595,7 +10618,9 @@ window.__ModuleLoader__.load({
                       padding: '8px 10px',
                       borderRadius: '8px',
                       border: u?.hasUpdate ? '1px solid rgba(56,189,248,0.48)' : '1px solid rgba(148,163,184,0.18)',
-                      background: p.enabled ? 'rgba(15,23,42,0.26)' : 'rgba(15,23,42,0.12)',
+                      background: p.enabled
+                        ? (detectTheme() === 'light' ? 'rgba(255,255,255,0.84)' : 'rgba(15,23,42,0.26)')
+                        : (detectTheme() === 'light' ? 'rgba(241,245,249,0.72)' : 'rgba(15,23,42,0.12)'),
                       opacity: p.enabled ? 1 : 0.65
                     },
                     children: [
@@ -10607,9 +10632,9 @@ window.__ModuleLoader__.load({
                             children: [
                               jsx('strong', { style: { fontSize: '12.5px', wordBreak: 'break-all' }, children: p.name }),
                               jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(148,163,184,0.2)' }, children: `v${p.installedVersion}` }),
-                              jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(56,189,248,0.15)', color: '#7dd3fc' }, children: sourceTag }),
+                              jsx('span', { style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: detectTheme() === 'light' ? 'rgba(2,132,199,0.12)' : 'rgba(56,189,248,0.15)', color: detectTheme() === 'light' ? '#0369a1' : '#7dd3fc' }, children: sourceTag }),
                               u?.hasUpdate ? jsx('span', {
-                                style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(34,197,94,0.2)', color: '#86efac', fontWeight: 600 },
+                                style: { fontSize: '10.5px', padding: '1px 6px', borderRadius: '999px', background: detectTheme() === 'light' ? 'rgba(22,163,74,0.14)' : 'rgba(34,197,94,0.2)', color: detectTheme() === 'light' ? '#15803d' : '#86efac', fontWeight: 600 },
                                 children: `新版本 v${u.latestVersion}`
                               }) : null,
                               u?.requiresDsh ? jsx('span', { style: { fontSize: '10.5px', opacity: 0.72 }, children: `需 DSH ${u.requiresDsh}` }) : null
@@ -10792,9 +10817,1086 @@ window.__ModuleLoader__.load({
     // -----------------------------------------------------------------------
     // Plugin Entry
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 内置效率增强模块前端运行时（drag-and-drop / chat-link-actions / conversation-search）
+    // -----------------------------------------------------------------------
+    let activePluginCtx = null;
+    const addonClientForks = {
+      dragAndDrop: null,
+      chatLinkActions: null,
+      conversationSearch: null
+    };
+    const addonClientModuleCache = {};
+    let addonClientSyncInFlight = false;
+
+    const ADDON_CLIENT_SPECS = [
+      { key: 'dragAndDrop', bundleName: 'drag-and-drop', cfgKey: 'dragAndDropEnabled' },
+      { key: 'chatLinkActions', bundleName: 'chat-link-actions', cfgKey: 'chatLinkActionsEnabled' },
+      { key: 'conversationSearch', bundleName: 'conversation-search', cfgKey: 'conversationSearchEnabled' }
+    ];
+
+    function disposeAddonClientFork(key) {
+      const f = addonClientForks[key];
+      addonClientForks[key] = null;
+      if (f && typeof f.dispose === 'function') {
+        try { f.dispose(); } catch {}
+      }
+    }
+
+    function disposeAllAddonClientForks() {
+      for (const spec of ADDON_CLIENT_SPECS) disposeAddonClientFork(spec.key);
+    }
+
+    async function loadAddonClientModule(bundleName) {
+      if (addonClientModuleCache[bundleName]) return addonClientModuleCache[bundleName];
+      const resp = await fetch(`${API_BASE}/addons/client?name=${encodeURIComponent(bundleName)}`, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const code = await resp.text();
+      const loader = window.__ModuleLoader__;
+      if (!loader || typeof loader.load !== 'function') {
+        throw new Error('__ModuleLoader__ unavailable');
+      }
+      let captured = null;
+      const origLoad = loader.load;
+      loader.load = function (entry) {
+        captured = entry;
+      };
+      try {
+        // Execute bundle in isolated function scope so __ModuleLoader__.load captures its factory
+        const runner = new Function(code);
+        runner();
+      } finally {
+        loader.load = origLoad;
+      }
+      if (!captured || typeof captured.factory !== 'function') {
+        throw new Error(`Invalid client bundle: ${bundleName}`);
+      }
+      const mod = captured.factory(require);
+      addonClientModuleCache[bundleName] = mod;
+      return mod;
+    }
+
+    async function syncBuiltInAddonsClient() {
+      if (!activePluginCtx || addonClientSyncInFlight) return;
+      addonClientSyncInFlight = true;
+      try {
+        let hostStatus = {};
+        try {
+          const r = await fetch(`${API_BASE}/addons/status`, { cache: 'no-store' });
+          const d = await r.json();
+          if (d?.ok && d.status) hostStatus = d.status;
+        } catch {}
+
+        for (const spec of ADDON_CLIENT_SPECS) {
+          const enabled = config[spec.cfgKey] !== false;
+          const hState = hostStatus[spec.key]?.state;
+          if (!enabled || hState === 'yielded') {
+            disposeAddonClientFork(spec.key);
+            continue;
+          }
+          if (addonClientForks[spec.key]) continue;
+          try {
+            const mod = await loadAddonClientModule(spec.bundleName);
+            if (!mod || typeof mod.apply !== 'function') continue;
+            addonClientForks[spec.key] = activePluginCtx.plugin({
+              name: `dsh-azure-glass:client:${spec.bundleName}`,
+              inject: Array.isArray(mod.inject) ? mod.inject : [],
+              apply: mod.apply
+            });
+          } catch (err) {
+            console.warn(`[dsh-azure-glass] failed to mount client addon ${spec.bundleName}:`, err);
+          }
+        }
+      } finally {
+        addonClientSyncInFlight = false;
+      }
+    }
+
+    function BuiltInAddonsTab({ cfg, updateConfig }) {
+      const [statusMap, setStatusMap] = React.useState({});
+      const [hostReady, setHostReady] = React.useState(true);
+      const [busyKey, setBusyKey] = React.useState('');
+
+      const fetchStatus = React.useCallback(async () => {
+        try {
+          const r = await fetch(`${API_BASE}/addons/status`, { cache: 'no-store' });
+          if (!r.ok) {
+            setHostReady(false);
+            return;
+          }
+          const d = await r.json();
+          if (d?.ok && d.status) {
+            setHostReady(true);
+            setStatusMap(d.status);
+          } else {
+            setHostReady(false);
+          }
+        } catch {
+          setHostReady(false);
+        }
+      }, []);
+
+      React.useEffect(() => {
+        void fetchStatus();
+      }, [fetchStatus]);
+
+      const onToggleAddon = async (cfgKey, modKey) => {
+        setBusyKey(modKey);
+        try {
+          const nextVal = !(cfg[cfgKey] !== false);
+          updateConfig({ [cfgKey]: nextVal }, true);
+          await new Promise((r) => setTimeout(r, 120));
+          const r = await fetch(`${API_BASE}/addons/sync`, { method: 'POST' });
+          const d = await r.json();
+          if (d?.ok && d.status) setStatusMap(d.status);
+          await syncBuiltInAddonsClient();
+        } catch {}
+        finally {
+          setBusyKey('');
+        }
+      };
+
+      const renderBadge = (modKey) => {
+        if (!hostReady) {
+          return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(245,158,11,0.2)', color: '#fbbf24', fontWeight: 600 }, children: '需重启 DSH 生效' });
+        }
+        const st = statusMap[modKey]?.state || 'idle';
+        if (st === 'active') {
+          return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(34,197,94,0.18)', color: '#4ade80', fontWeight: 600 }, children: '苍蓝琉璃运行中' });
+        }
+        if (st === 'yielded') {
+          return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(245,158,11,0.2)', color: '#fbbf24', fontWeight: 600 }, children: '已让位给独立插件' });
+        }
+        if (st === 'error') {
+          return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(239,68,68,0.2)', color: '#f87171', fontWeight: 600 }, title: statusMap[modKey]?.message || '', children: '加载异常' });
+        }
+        if (st === 'idle') {
+          return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(56,189,248,0.16)', color: '#7dd3fc' }, children: '初始化中...' });
+        }
+        return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(148,163,184,0.18)', color: '#94a3b8' }, children: '已关闭' });
+      };
+
+      const items = [
+        {
+          modKey: 'cookieGuard',
+          cfgKey: 'cookieGuardEnabled',
+          title: '🍪 Cookie 431 自动防护',
+          desc: '自动放宽请求头上限并清理过期 dsh-auth-* Cookie，根治长期使用后 431 打不开 Web UI 的问题。'
+        },
+        {
+          modKey: 'dragAndDrop',
+          cfgKey: 'dragAndDropEnabled',
+          title: '📂 拖拽文件生成路径芯片',
+          desc: '将本地文件或文件夹拖入页面任意位置，自动解析真实绝对路径并在输入框上方生成可删除芯片，支持不打字直接发送。'
+        },
+        {
+          modKey: 'chatLinkActions',
+          cfgKey: 'chatLinkActionsEnabled',
+          title: '🖱️ 对话文件链接右键菜单',
+          desc: '右键对话中的文件路径或附件弹出自绘菜单：引用到对话、在资源管理器中查看、复制路径、发送到…以及自定义入口。'
+        },
+        {
+          modKey: 'conversationSearch',
+          cfgKey: 'conversationSearchEnabled',
+          title: '🔎 会话全文搜索与跳转',
+          desc: '在输入框旁工具栏提供放大镜入口，支持当前/全部会话的宽松、精确、正则三态检索，点击结果自动跨会话定位并高亮。'
+        }
+      ];
+
+      return jsxs('div', {
+        style: { display: 'flex', flexDirection: 'column', gap: '10px' },
+        children: [
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '内置效率增强模块（一站式整合）' }),
+              jsx('div', {
+                className: 'dsh-sg-sub',
+                style: { marginBottom: '10px' },
+                children: '以下 4 项功能已完整内置进苍蓝琉璃，支持独立热启停；若本机仍启用同名独立插件，苍蓝琉璃会自动让位避免冲突。'
+              }),
+              jsx('div', {
+                style: { display: 'flex', flexDirection: 'column', gap: '8px' },
+                children: items.map((it) => {
+                  const on = cfg[it.cfgKey] !== false;
+                  return jsxs('div', {
+                    key: it.modKey,
+                    style: {
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(148,163,184,0.2)',
+                      background: on
+                        ? (detectTheme() === 'light' ? 'rgba(255,255,255,0.84)' : 'rgba(15,23,42,0.22)')
+                        : (detectTheme() === 'light' ? 'rgba(241,245,249,0.72)' : 'rgba(15,23,42,0.1)')
+                    },
+                    children: [
+                      jsxs('div', {
+                        style: { minWidth: 0, flex: 1 },
+                        children: [
+                          jsxs('div', {
+                            style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+                            children: [
+                              jsx('strong', { style: { fontSize: '12.5px' }, children: it.title }),
+                              renderBadge(it.modKey)
+                            ]
+                          }),
+                          jsx('div', { className: 'dsh-sg-sub', style: { fontSize: '11.5px', marginTop: '3px' }, children: it.desc })
+                        ]
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        'data-active': on ? '1' : '0',
+                        disabled: busyKey === it.modKey,
+                        onClick: () => void onToggleAddon(it.cfgKey, it.modKey),
+                        children: busyKey === it.modKey ? '切换中...' : (on ? '已开启' : '已关闭')
+                      })
+                    ]
+                  });
+                })
+              })
+            ]
+          }),
+          cfg.cookieGuardEnabled !== false ? jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '🍪 Cookie 防护参数' }),
+              jsxs('div', {
+                className: 'dsh-sg-row',
+                children: [
+                  jsxs('div', {
+                    children: [
+                      jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: `多开保留其它实例 Cookie 数：${cfg.cookieGuardKeepOtherCookies ?? 3} 条` }),
+                      jsx('div', { className: 'dsh-sg-sub', children: '单开可设为 0（最激进），多开建议保留 3 条' })
+                    ]
+                  }),
+                  jsx('input', {
+                    type: 'range',
+                    min: 0,
+                    max: 8,
+                    step: 1,
+                    value: Number(cfg.cookieGuardKeepOtherCookies ?? 3),
+                    onChange: (e) => {
+                      updateConfig({ cookieGuardKeepOtherCookies: Number(e.target.value) }, true);
+                      setTimeout(() => { void fetch(`${API_BASE}/addons/sync`, { method: 'POST' }); }, 150);
+                    }
+                  })
+                ]
+              })
+            ]
+          }) : null,
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '🔭 苍蓝上下文观察窗与实时余额' }),
+              jsx('div', {
+                className: 'dsh-sg-sub',
+                style: { marginBottom: '10px' },
+                children: '在输入框下方显示毛玻璃胶囊状态条（轮次/步数、生成速度、缓存命中率、上下文占比、压缩次数与供应商余额），点击弹出完整上下文观察窗；可直接替代独立 dsh-balance 插件。'
+              }),
+              jsxs('div', {
+                style: { display: 'flex', flexDirection: 'column', gap: '8px' },
+                children: [
+                  jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '启用底部胶囊与观察窗' }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '仅按需读取当前单个会话，零启动扫描开销' })
+                        ]
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        'data-active': cfg.observerEnabled !== false ? '1' : '0',
+                        onClick: () => updateConfig({ observerEnabled: cfg.observerEnabled === false }, true),
+                        children: cfg.observerEnabled !== false ? '已开启' : '已关闭'
+                      })
+                    ]
+                  }),
+                  cfg.observerEnabled !== false ? jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '显示当前供应商余额与额度' }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '支持 DeepSeek 官方、Kimi Coding、GLM Coding、MiniMax、OpenRouter、OpenCode Go（5 分钟缓存）' })
+                        ]
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        'data-active': cfg.observerShowBalance !== false ? '1' : '0',
+                        onClick: () => updateConfig({ observerShowBalance: cfg.observerShowBalance === false }, true),
+                        children: cfg.observerShowBalance !== false ? '已开启' : '已关闭'
+                      })
+                    ]
+                  }) : null,
+                  cfg.observerEnabled !== false ? jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: `观察窗背景透明度：${Math.round((cfg.observerModalOpacity ?? 0.86) * 100)}%` }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '独立控制苍蓝观察窗弹窗底色透明程度，不影响其他弹窗' })
+                        ]
+                      }),
+                      jsx('input', {
+                        type: 'range',
+                        min: 0.15,
+                        max: 0.98,
+                        step: 0.01,
+                        value: Number(cfg.observerModalOpacity ?? 0.86),
+                        onChange: (e) => updateConfig({ observerModalOpacity: Number(e.target.value) }, true)
+                      })
+                    ]
+                  }) : null,
+                  cfg.observerEnabled !== false ? jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: `观察窗背景毛玻璃模糊：${Math.round(cfg.observerModalBlurPx ?? 22)}px` }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '0px 为纯半透明无模糊，调高可获得更柔和的磨砂质感' })
+                        ]
+                      }),
+                      jsx('input', {
+                        type: 'range',
+                        min: 0,
+                        max: 40,
+                        step: 1,
+                        value: Number(cfg.observerModalBlurPx ?? 22),
+                        onChange: (e) => updateConfig({ observerModalBlurPx: Number(e.target.value) }, true)
+                      })
+                    ]
+                  }) : null,
+                  cfg.observerEnabled !== false ? jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '观察窗背景底色' }),
+                          jsx('div', { className: 'dsh-sg-sub', children: `当前色值：${cfg.observerModalBgColor || '#1a1d29'}` })
+                        ]
+                      }),
+                      jsxs('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: '8px' },
+                        children: [
+                          jsx('input', {
+                            type: 'color',
+                            value: /^#[0-9a-f]{6}$/i.test(cfg.observerModalBgColor || '') ? cfg.observerModalBgColor : '#1a1d29',
+                            onChange: (e) => updateConfig({ observerModalBgColor: e.target.value }, true),
+                            style: { width: '34px', height: '26px', border: 'none', borderRadius: '6px', background: 'transparent', cursor: 'pointer' }
+                          }),
+                          jsx('button', {
+                            type: 'button',
+                            className: 'dsh-sg-btn',
+                            onClick: () => updateConfig({ observerModalBgColor: '#1a1d29', observerModalOpacity: 0.86, observerModalBlurPx: 22 }, true),
+                            children: '重置背景'
+                          })
+                        ]
+                      })
+                    ]
+                  }) : null
+                ]
+              })
+            ]
+          })
+        ]
+      });
+    }
+
+    // ── 苍蓝上下文观察窗（输入框下方毛玻璃胶囊 + 1:1 复刻观察弹窗） ─────────
+    const OBSERVER_STYLE_ID = 'dsh-azure-glass-observer-style';
+    function ensureObserverStyle() {
+      if (document.getElementById(OBSERVER_STYLE_ID)) return;
+      const st = document.createElement('style');
+      st.id = OBSERVER_STYLE_ID;
+      st.textContent = `
+        .dsh-ag-obs-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 3px 10px;
+          border-radius: 999px;
+          font-size: 11.5px;
+          line-height: 1.45;
+          color: rgba(226, 232, 240, 0.92);
+          background: rgba(24, 28, 40, 0.68);
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          backdrop-filter: blur(12px) saturate(130%);
+          -webkit-backdrop-filter: blur(12px) saturate(130%);
+          cursor: pointer;
+          user-select: none;
+          white-space: nowrap;
+          font-variant-numeric: tabular-nums;
+          transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
+        }
+        .dsh-ag-obs-pill:hover {
+          background: rgba(36, 42, 60, 0.84);
+          border-color: rgba(96, 165, 250, 0.45);
+          transform: translateY(-0.5px);
+        }
+        .dsh-ag-obs-sep { opacity: 0.4; }
+        .dsh-ag-obs-pct-ok { color: #34d399; font-weight: 600; }
+        .dsh-ag-obs-pct-warn { color: #fbbf24; font-weight: 600; }
+        .dsh-ag-obs-pct-crit { color: #f87171; font-weight: 600; }
+        .dsh-ag-obs-compact-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 0 6px;
+          border-radius: 999px;
+          font-size: 10.5px;
+          font-weight: 600;
+          color: #fbbf24;
+          background: rgba(245, 158, 11, 0.18);
+          border: 1px solid rgba(245, 158, 11, 0.34);
+        }
+        .dsh-ag-obs-bal-badge {
+          color: #38bdf8;
+          font-weight: 600;
+        }
+        .dsh-ag-obs-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 2147483630;
+          background: rgba(8, 10, 18, 0.56);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          animation: dshAgObsFadeIn 140ms ease;
+        }
+        @keyframes dshAgObsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .dsh-ag-obs-modal {
+          width: min(860px, 94vw);
+          max-height: 88vh;
+          overflow-y: auto;
+          border-radius: 16px;
+          background: rgba(26, 29, 41, 0.88);
+          border: 1px solid rgba(148, 163, 184, 0.24);
+          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(22px) saturate(140%);
+          -webkit-backdrop-filter: blur(22px) saturate(140%);
+          color: #e2e8f0;
+          padding: 18px 20px 14px;
+          font-family: inherit;
+          font-variant-numeric: tabular-nums;
+        }
+        .dsh-ag-obs-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+          margin-bottom: 14px;
+        }
+        .dsh-ag-obs-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 14.5px;
+          font-weight: 700;
+          color: #f8fafc;
+          min-width: 0;
+        }
+        .dsh-ag-obs-session-tag {
+          font-size: 12px;
+          font-weight: 500;
+          color: #cbd5e1;
+          background: rgba(15, 23, 42, 0.52);
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 8px;
+          padding: 3px 10px;
+          max-width: 360px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .dsh-ag-obs-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .dsh-ag-obs-btn {
+          background: rgba(148, 163, 184, 0.14);
+          color: #e2e8f0;
+          border: 1px solid rgba(148, 163, 184, 0.24);
+          border-radius: 8px;
+          padding: 4px 10px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: background 120ms ease;
+        }
+        .dsh-ag-obs-btn:hover { background: rgba(148, 163, 184, 0.26); }
+        .dsh-ag-obs-grid4 {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+        @media (max-width: 680px) {
+          .dsh-ag-obs-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        .dsh-ag-obs-card {
+          background: rgba(38, 43, 59, 0.62);
+          border: 1px solid rgba(148, 163, 184, 0.16);
+          border-radius: 12px;
+          padding: 12px 14px;
+        }
+        .dsh-ag-obs-card-label {
+          font-size: 11.5px;
+          color: #94a3b8;
+          margin-bottom: 6px;
+        }
+        .dsh-ag-obs-card-val {
+          font-size: 17px;
+          font-weight: 700;
+          color: #f8fafc;
+          line-height: 1.25;
+        }
+        .dsh-ag-obs-card-sub {
+          font-size: 12px;
+          color: #94a3b8;
+          margin-top: 2px;
+        }
+        .dsh-ag-obs-section {
+          background: rgba(38, 43, 59, 0.52);
+          border: 1px solid rgba(148, 163, 184, 0.16);
+          border-radius: 12px;
+          padding: 13px 15px;
+          margin-bottom: 12px;
+        }
+        .dsh-ag-obs-section-hd {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #e2e8f0;
+          margin-bottom: 10px;
+        }
+        .dsh-ag-obs-bar-row {
+          margin-bottom: 8px;
+        }
+        .dsh-ag-obs-bar-row:last-child { margin-bottom: 0; }
+        .dsh-ag-obs-bar-meta {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11.5px;
+          color: #cbd5e1;
+          margin-bottom: 4px;
+        }
+        .dsh-ag-obs-bar-track {
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.55);
+          overflow: hidden;
+        }
+        .dsh-ag-obs-bar-fill {
+          height: 100%;
+          border-radius: 999px;
+          transition: width 260ms ease;
+        }
+        .dsh-ag-obs-grid2 {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        @media (max-width: 680px) {
+          .dsh-ag-obs-grid2 { grid-template-columns: 1fr; }
+        }
+        .dsh-ag-obs-kv {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 12px;
+          padding: 4px 0;
+          color: #cbd5e1;
+        }
+        .dsh-ag-obs-step-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          font-size: 12px;
+          padding: 5px 0;
+          border-bottom: 1px dashed rgba(148, 163, 184, 0.1);
+        }
+        .dsh-ag-obs-step-row:last-child { border-bottom: none; }
+        .dsh-ag-obs-step-txt {
+          color: #cbd5e1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          font-size: 11.5px;
+        }
+        .dsh-ag-obs-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(148, 163, 184, 0.14);
+          font-size: 11.5px;
+          color: #94a3b8;
+        }
+      `;
+      document.head.appendChild(st);
+    }
+
+    function fmtTokCompact(n) {
+      const v = Number(n) || 0;
+      if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
+      if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+      return String(Math.round(v));
+    }
+
+    function pctToneClass(pct) {
+      if (pct >= 80) return 'dsh-ag-obs-pct-crit';
+      if (pct >= 60) return 'dsh-ag-obs-pct-warn';
+      return 'dsh-ag-obs-pct-ok';
+    }
+
+    function pctStrokeColor(pct) {
+      if (pct >= 80) return '#f87171';
+      if (pct >= 60) return '#fbbf24';
+      return '#34d399';
+    }
+
+    function ContextRingSvg({ pct }) {
+      const p = Math.max(0, Math.min(100, Number(pct) || 0));
+      const r = 5.5;
+      const c = 2 * Math.PI * r;
+      const offset = c * (1 - p / 100);
+      return jsxs('svg', {
+        width: 14,
+        height: 14,
+        viewBox: '0 0 16 16',
+        style: { flexShrink: 0 },
+        children: [
+          jsx('circle', { cx: 8, cy: 8, r, fill: 'none', stroke: 'rgba(148,163,184,0.28)', strokeWidth: 2 }),
+          jsx('circle', {
+            cx: 8,
+            cy: 8,
+            r,
+            fill: 'none',
+            stroke: pctStrokeColor(p),
+            strokeWidth: 2,
+            strokeDasharray: c,
+            strokeDashoffset: offset,
+            strokeLinecap: 'round',
+            transform: 'rotate(-90 8 8)'
+          })
+        ]
+      });
+    }
+
+    function hexToRgbaSafe(hex, alpha) {
+      const m = String(hex || '').trim().match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+      const a = Math.max(0.15, Math.min(0.98, Number(alpha) || 0.86));
+      if (!m) return `rgba(26, 29, 41, ${a})`;
+      return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
+    }
+
+    function AzureObserverModal({ open, onClose, data, loading, onRefresh, cfg }) {
+      React.useEffect(() => {
+        if (!open) return;
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [open, onClose]);
+
+      if (!open) return null;
+
+      const d = data || {};
+      const pct = Number(d.contextPct) || 0;
+      const bal = d.balance;
+      const breakdown = Array.isArray(d.breakdown) ? d.breakdown : [];
+      const toolCats = Array.isArray(d.toolCategories) ? d.toolCategories : [];
+      const heaviest = Array.isArray(d.heaviestSteps) ? d.heaviestSteps : [];
+      const modalBlur = Math.max(0, Math.min(40, Math.round(Number(cfg?.observerModalBlurPx ?? 22))));
+      const modalBg = hexToRgbaSafe(cfg?.observerModalBgColor || '#1a1d29', cfg?.observerModalOpacity ?? 0.86);
+
+      const modalNode = jsx('div', {
+        className: 'dsh-ag-obs-backdrop',
+        onClick: (e) => { if (e.target === e.currentTarget) onClose(); },
+        children: jsxs('div', {
+          className: 'dsh-ag-obs-modal',
+          style: {
+            background: modalBg,
+            backdropFilter: `blur(${modalBlur}px) saturate(140%)`,
+            WebkitBackdropFilter: `blur(${modalBlur}px) saturate(140%)`
+          },
+          children: [
+            jsxs('div', {
+              className: 'dsh-ag-obs-header',
+              children: [
+                jsxs('div', {
+                  className: 'dsh-ag-obs-title',
+                  children: [
+                    jsx('span', { children: '✦ 苍蓝上下文观察窗' }),
+                    jsx('span', {
+                      className: 'dsh-ag-obs-session-tag',
+                      title: d.title || d.sessionId || '',
+                      children: `${d.title || '当前会话'} (${d.turns || 0}轮 ${d.steps || 0}步 · ${pct}%)`
+                    })
+                  ]
+                }),
+                jsxs('div', {
+                  className: 'dsh-ag-obs-actions',
+                  children: [
+                    jsx('button', {
+                      type: 'button',
+                      className: 'dsh-ag-obs-btn',
+                      disabled: loading,
+                      onClick: onRefresh,
+                      children: loading ? '刷新中…' : '↻ 刷新'
+                    }),
+                    jsx('button', {
+                      type: 'button',
+                      className: 'dsh-ag-obs-btn',
+                      onClick: onClose,
+                      children: '关闭 ×'
+                    })
+                  ]
+                })
+              ]
+            }),
+
+            // 顶部 4 指标卡
+            jsxs('div', {
+              className: 'dsh-ag-obs-grid4',
+              children: [
+                jsxs('div', {
+                  className: 'dsh-ag-obs-card',
+                  children: [
+                    jsx('div', { className: 'dsh-ag-obs-card-label', children: '轮次 / 步数' }),
+                    jsx('div', { className: 'dsh-ag-obs-card-val', children: `${d.turns || 0} 轮 ${d.steps || 0} 步` }),
+                    d.spendCny > 0 ? jsx('div', { className: 'dsh-ag-obs-card-sub', children: `本会话估算 ¥${Number(d.spendCny).toFixed(2)}` }) : null
+                  ]
+                }),
+                jsxs('div', {
+                  className: 'dsh-ag-obs-card',
+                  children: [
+                    jsx('div', { className: 'dsh-ag-obs-card-label', children: '上下文占用' }),
+                    jsx('div', {
+                      className: `dsh-ag-obs-card-val ${pctToneClass(pct)}`,
+                      children: `${fmtTokCompact(d.currentContextTokens)} / ${fmtTokCompact(d.contextWindow)}`
+                    }),
+                    jsx('div', { className: `dsh-ag-obs-card-sub ${pctToneClass(pct)}`, children: `(${pct}%)` })
+                  ]
+                }),
+                jsxs('div', {
+                  className: 'dsh-ag-obs-card',
+                  children: [
+                    jsx('div', { className: 'dsh-ag-obs-card-label', children: '精准缓存命中率' }),
+                    jsx('div', { className: 'dsh-ag-obs-card-val', style: { color: '#38bdf8' }, children: `${d.cacheHitRate || 0}%` }),
+                    jsx('div', { className: 'dsh-ag-obs-card-sub', children: `命中 ${fmtTokCompact(d.totalCacheReadTokens)} tok` })
+                  ]
+                }),
+                jsxs('div', {
+                  className: 'dsh-ag-obs-card',
+                  children: [
+                    jsx('div', { className: 'dsh-ag-obs-card-label', children: '实时生成速度' }),
+                    jsx('div', { className: 'dsh-ag-obs-card-val', children: d.tokPerSec > 0 ? `${d.tokPerSec} tok/s` : '待生成' }),
+                    jsx('div', { className: 'dsh-ag-obs-card-sub', children: d.model || d.provider || '—' })
+                  ]
+                })
+              ]
+            }),
+
+            // 上下文精准构成
+            jsxs('div', {
+              className: 'dsh-ag-obs-section',
+              children: [
+                jsxs('div', {
+                  className: 'dsh-ag-obs-section-hd',
+                  children: [
+                    jsx('span', { children: '🧠 当前窗口上下文构成拆解' }),
+                    jsx('span', { style: { color: '#94a3b8', fontWeight: 600 }, children: `${fmtTokCompact(d.currentContextTokens)} tok` })
+                  ]
+                }),
+                breakdown.length > 0 ? breakdown.map((item) => jsxs('div', {
+                  key: item.key,
+                  className: 'dsh-ag-obs-bar-row',
+                  children: [
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-bar-meta',
+                      children: [
+                        jsx('span', { children: item.label }),
+                        jsx('span', { children: `${fmtTokCompact(item.tokens)} tok (${item.pct}%)` })
+                      ]
+                    }),
+                    jsx('div', {
+                      className: 'dsh-ag-obs-bar-track',
+                      children: jsx('div', {
+                        className: 'dsh-ag-obs-bar-fill',
+                        style: { width: `${Math.max(1.5, Math.min(100, item.pct))}%`, background: item.color || '#8b5cf6' }
+                      })
+                    })
+                  ]
+                })) : jsx('div', { style: { fontSize: '12px', color: '#94a3b8' }, children: '当前会话尚无上下文数据' })
+              ]
+            }),
+
+            // 供应商余额 / 额度卡
+            bal && bal.supported ? jsxs('div', {
+              className: 'dsh-ag-obs-section',
+              children: [
+                jsxs('div', {
+                  className: 'dsh-ag-obs-section-hd',
+                  children: [
+                    jsx('span', { children: `⚡ 供应商余额与额度 (${bal.label || bal.provider})` }),
+                    jsx('span', { style: { fontSize: '11.5px', color: '#94a3b8', fontWeight: 500 }, children: d.model || d.provider })
+                  ]
+                }),
+                bal.error ? jsx('div', { style: { fontSize: '12px', color: '#f87171' }, children: bal.error }) : jsxs('div', {
+                  style: { display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, (bal.items || []).length))}, minmax(0, 1fr))`, gap: '10px' },
+                  children: (bal.items || []).map((it, idx) => jsxs('div', {
+                    key: idx,
+                    style: { background: 'rgba(15,23,42,0.42)', borderRadius: '10px', padding: '10px 12px', border: '1px solid rgba(148,163,184,0.14)' },
+                    children: [
+                      jsxs('div', {
+                        style: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' },
+                        children: [
+                          jsx('span', { style: { color: '#cbd5e1' }, children: it.title }),
+                          jsx('span', {
+                            style: {
+                              fontWeight: 700,
+                              color: it.status === 'error' ? '#f87171' : (it.status === 'warn' ? '#fbbf24' : '#34d399')
+                            },
+                            children: it.valueText
+                          })
+                        ]
+                      }),
+                      typeof it.pct === 'number' ? jsx('div', {
+                        className: 'dsh-ag-obs-bar-track',
+                        style: { marginBottom: '5px' },
+                        children: jsx('div', {
+                          className: 'dsh-ag-obs-bar-fill',
+                          style: {
+                            width: `${Math.max(2, Math.min(100, it.pct))}%`,
+                            background: it.status === 'error' ? '#f87171' : (it.status === 'warn' ? '#fbbf24' : '#34d399')
+                          }
+                        })
+                      }) : null,
+                      it.subText ? jsx('div', { style: { fontSize: '11px', color: '#94a3b8', textAlign: 'right' }, children: it.subText }) : null
+                    ]
+                  }))
+                })
+              ]
+            }) : null,
+
+            // 工具消耗分类 + 压缩状态
+            jsxs('div', {
+              className: 'dsh-ag-obs-grid2',
+              children: [
+                jsxs('div', {
+                  className: 'dsh-ag-obs-section',
+                  style: { marginBottom: 0 },
+                  children: [
+                    jsx('div', { className: 'dsh-ag-obs-section-hd', children: jsx('span', { children: '🛠️ 活跃窗口工具消耗' }) }),
+                    toolCats.length > 0 ? toolCats.map((c) => jsxs('div', {
+                      key: c.name,
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: `${c.name} (${c.count})` }),
+                        jsx('span', { style: { color: '#94a3b8' }, children: `~${fmtTokCompact(c.tokens)} tok` })
+                      ]
+                    })) : jsx('div', { style: { fontSize: '12px', color: '#94a3b8' }, children: '暂无工具调用记录' })
+                  ]
+                }),
+                jsxs('div', {
+                  className: 'dsh-ag-obs-section',
+                  style: { marginBottom: 0 },
+                  children: [
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-section-hd',
+                      children: [
+                        jsx('span', { children: '📦 压缩状态与会话信息' }),
+                        jsx('span', { className: 'dsh-ag-obs-compact-badge', children: `压缩 ${d.compactions || 0} 次` })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '压缩来源明细' }),
+                        jsx('span', {
+                          children: `官方 ${d.nativeCompactions || 0} 次 · billion-context ${d.biliCompactions || 0} 次${d.biliDecompactions > 0 ? ` (解压 ${d.biliDecompactions} 次)` : ''}`
+                        })
+                      ]
+                    }),
+                    jsxs('div', { className: 'dsh-ag-obs-kv', children: [jsx('span', { children: '当前供应商' }), jsx('span', { children: d.provider || '—' })] }),
+                    jsxs('div', { className: 'dsh-ag-obs-kv', children: [jsx('span', { children: '当前模型' }), jsx('span', { children: d.model || '—' })] }),
+                    jsxs('div', { className: 'dsh-ag-obs-kv', children: [jsx('span', { children: '窗口上限' }), jsx('span', { children: `${fmtTokCompact(d.contextWindow)} tok` })] })
+                  ]
+                })
+              ]
+            }),
+
+            // 最重步骤 Top 5
+            jsxs('div', {
+              className: 'dsh-ag-obs-section',
+              children: [
+                jsx('div', { className: 'dsh-ag-obs-section-hd', children: jsx('span', { children: '🔥 最重步骤 Top 5' }) }),
+                heaviest.length > 0 ? heaviest.map((st, idx) => jsxs('div', {
+                  key: idx,
+                  className: 'dsh-ag-obs-step-row',
+                  children: [
+                    jsx('span', {
+                      className: 'dsh-ag-obs-step-txt',
+                      title: `[${st.tool}] ${st.preview}`,
+                      children: `#${idx + 1} [${st.tool}] ${st.preview}`
+                    }),
+                    jsx('span', { style: { color: '#94a3b8', flexShrink: 0, fontWeight: 600 }, children: `~${fmtTokCompact(st.tokens)} tok` })
+                  ]
+                })) : jsx('div', { style: { fontSize: '12px', color: '#94a3b8' }, children: '暂无大体积工具步骤' })
+              ]
+            }),
+
+            jsxs('div', {
+              className: 'dsh-ag-obs-footer',
+              children: [
+                jsx('span', { children: '提示：按 Esc 或点击空白处关闭，点「刷新」立即更新余额与统计。' }),
+                jsx('span', {
+                  children: `总输入 ${fmtTokCompact(d.totalInputTokens)} · 缓存 ${fmtTokCompact(d.totalCacheReadTokens)} · 输出 ${fmtTokCompact(d.totalOutputTokens)}`
+                })
+              ]
+            })
+          ]
+        })
+      });
+
+      try {
+        const ReactDOM = require('react-dom');
+        if (ReactDOM && typeof ReactDOM.createPortal === 'function' && document.body) {
+          return ReactDOM.createPortal(modalNode, document.body);
+        }
+      } catch {}
+      return modalNode;
+    }
+
+    function AzureObserverCapsule({ sessionId }) {
+      const { config: cfg } = useStore();
+      const [data, setData] = React.useState(null);
+      const [open, setOpen] = React.useState(false);
+      const [loading, setLoading] = React.useState(false);
+
+      const enabled = cfg.observerEnabled !== false;
+      const showBal = cfg.observerShowBalance !== false;
+
+      const fetchNow = React.useCallback((forceRefresh) => {
+        if (!enabled) return;
+        const qs = new URLSearchParams();
+        if (sessionId) qs.set('sessionId', String(sessionId));
+        qs.set('balance', showBal ? '1' : '0');
+        if (forceRefresh) qs.set('refresh', '1');
+        if (forceRefresh) setLoading(true);
+        fetch(`${API_BASE}/observer/telemetry?${qs.toString()}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => {
+            if (j && j.ok) setData(j);
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (forceRefresh) setLoading(false);
+          });
+      }, [enabled, sessionId, showBal]);
+
+      React.useEffect(() => {
+        if (!enabled) return;
+        ensureObserverStyle();
+        fetchNow(false);
+        const timer = setInterval(() => {
+          if (document.visibilityState === 'hidden') return;
+          fetchNow(false);
+        }, 3000);
+        return () => clearInterval(timer);
+      }, [enabled, fetchNow]);
+
+      if (!enabled) return null;
+
+      const d = data || {};
+      const pct = Number(d.contextPct) || 0;
+      const balShort = showBal && d.balance && d.balance.supported && d.balance.shortText ? d.balance.shortText : '';
+
+      return jsxs(React.Fragment, {
+        children: [
+          jsxs('button', {
+            type: 'button',
+            className: 'dsh-ag-obs-pill',
+            title: '点击打开苍蓝上下文观察窗（查看上下文构成、缓存命中、工具消耗与供应商余额）',
+            onClick: () => {
+              setOpen(true);
+              fetchNow(false);
+            },
+            children: [
+              jsx('span', { children: `⏱ ${d.turns || 0} 轮 ${d.steps || 0} 步` }),
+              d.tokPerSec > 0 ? jsxs(React.Fragment, {
+                children: [
+                  jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
+                  jsx('span', { children: `${d.tokPerSec} tok/s` })
+                ]
+              }) : null,
+              d.totalAllTokens > 0 ? jsxs(React.Fragment, {
+                children: [
+                  jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
+                  jsx('span', { children: `${fmtTokCompact(d.totalAllTokens)} tok` })
+                ]
+              }) : null,
+              d.totalInputTokens > 0 ? jsxs(React.Fragment, {
+                children: [
+                  jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
+                  jsx('span', { children: `缓存命中 ${d.cacheHitRate || 0}%` })
+                ]
+              }) : null,
+              jsx(ContextRingSvg, { pct }),
+              jsx('span', { className: pctToneClass(pct), children: `${Math.round(pct)}%` }),
+              d.compactions > 0 ? jsx('span', { className: 'dsh-ag-obs-compact-badge', children: `压缩 ${d.compactions}次` }) : null,
+              balShort ? jsxs(React.Fragment, {
+                children: [
+                  jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
+                  jsx('span', { className: 'dsh-ag-obs-bal-badge', children: balShort })
+                ]
+              }) : null
+            ]
+          }),
+          jsx(AzureObserverModal, {
+            open,
+            onClose: () => setOpen(false),
+            data: d,
+            loading,
+            onRefresh: () => fetchNow(true),
+            cfg
+          })
+        ]
+      });
+    }
+
     const inject = ['slots', 'locale'];
 
     function apply(ctx) {
+      activePluginCtx = ctx;
+      if (typeof ctx.on === 'function') {
+        ctx.on('dispose', () => {
+          disposeAllAddonClientForks();
+          if (activePluginCtx === ctx) activePluginCtx = null;
+        });
+      }
+      setTimeout(() => { void syncBuiltInAddonsClient(); }, 300);
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-azure-glass: locale');
       const t = ctx.locale.bind(NS);
 
@@ -10883,6 +11985,13 @@ window.__ModuleLoader__.load({
 
       ctx.slots.inject(ISLAND_RIGHT_SLOT, () =>
         ctx.slots.register({ name: ISLAND_RIGHT_SLOT, id: 'dsh-azure-glass-composer-island-trigger', order: 85, inject: () => ({}) }, ComposerIslandSurface)
+      );
+
+      ctx.slots.inject('conversation.composer.dock', () =>
+        ctx.slots.register(
+          { name: 'conversation.composer.dock', id: 'dsh-azure-glass-observer', order: 12, label: '苍蓝观察窗' },
+          (props) => jsx(AzureObserverCapsule, { sessionId: props && props.sessionId })
+        )
       );
 
       ctx.slots.inject('sidebar.right.pane.tab', () =>

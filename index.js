@@ -24,6 +24,8 @@ import {
   importSkinZip,
   serveSkinAsset
 } from './skins-service.js';
+import { createAddonsManager, serveAddonClientBundle } from './addons-service.js';
+import { registerObserver } from './observer.js';
 import {
   listInstalledPlugins,
   checkAllPluginUpdates,
@@ -206,7 +208,23 @@ const DEFAULT_CONFIG = Object.freeze({
   mermaidEnabled: true,
   activeSkinId: '',
   skinRespectWe: true,
-  pluginUpdaterPlacement: 'both' // 'both' | 'glass-only'
+  pluginUpdaterPlacement: 'both', // 'both' | 'glass-only'
+
+  // 11. 内置效率增强模块（整合 cookie-guard / drag-and-drop / chat-link-actions / conversation-search）
+  cookieGuardEnabled: true,
+  cookieGuardMaxHeaderBytes: 262144,
+  cookieGuardKeepOtherCookies: 3,
+  cookieGuardCookieBudgetBytes: 4096,
+  dragAndDropEnabled: true,
+  chatLinkActionsEnabled: true,
+  conversationSearchEnabled: true,
+
+  // 12. 苍蓝上下文观察窗与底部胶囊状态条（内置多供应商实时余额/额度）
+  observerEnabled: true,
+  observerShowBalance: true,
+  observerModalOpacity: 0.86,
+  observerModalBlurPx: 22,
+  observerModalBgColor: '#1a1d29'
 });
 
 function resolveStoreDir() {
@@ -388,7 +406,19 @@ function normalizeConfig(raw) {
     mermaidEnabled: src.mermaidEnabled !== false,
     activeSkinId: cleanStr(src.activeSkinId, 64),
     skinRespectWe: src.skinRespectWe !== false,
-    pluginUpdaterPlacement: src.pluginUpdaterPlacement === 'glass-only' ? 'glass-only' : 'both'
+    pluginUpdaterPlacement: src.pluginUpdaterPlacement === 'glass-only' ? 'glass-only' : 'both',
+    cookieGuardEnabled: src.cookieGuardEnabled !== undefined ? Boolean(src.cookieGuardEnabled) : DEFAULT_CONFIG.cookieGuardEnabled,
+    cookieGuardMaxHeaderBytes: Math.round(clamp(src.cookieGuardMaxHeaderBytes, 16384, 1048576, DEFAULT_CONFIG.cookieGuardMaxHeaderBytes)),
+    cookieGuardKeepOtherCookies: Math.round(clamp(src.cookieGuardKeepOtherCookies, 0, 8, DEFAULT_CONFIG.cookieGuardKeepOtherCookies)),
+    cookieGuardCookieBudgetBytes: Math.round(clamp(src.cookieGuardCookieBudgetBytes, 256, 16384, DEFAULT_CONFIG.cookieGuardCookieBudgetBytes)),
+    dragAndDropEnabled: src.dragAndDropEnabled !== undefined ? Boolean(src.dragAndDropEnabled) : DEFAULT_CONFIG.dragAndDropEnabled,
+    chatLinkActionsEnabled: src.chatLinkActionsEnabled !== undefined ? Boolean(src.chatLinkActionsEnabled) : DEFAULT_CONFIG.chatLinkActionsEnabled,
+    conversationSearchEnabled: src.conversationSearchEnabled !== undefined ? Boolean(src.conversationSearchEnabled) : DEFAULT_CONFIG.conversationSearchEnabled,
+    observerEnabled: src.observerEnabled !== undefined ? Boolean(src.observerEnabled) : DEFAULT_CONFIG.observerEnabled,
+    observerShowBalance: src.observerShowBalance !== undefined ? Boolean(src.observerShowBalance) : DEFAULT_CONFIG.observerShowBalance,
+    observerModalOpacity: clamp(src.observerModalOpacity, 0.15, 0.98, DEFAULT_CONFIG.observerModalOpacity),
+    observerModalBlurPx: Math.round(clamp(src.observerModalBlurPx, 0, 40, DEFAULT_CONFIG.observerModalBlurPx)),
+    observerModalBgColor: cleanColor(src.observerModalBgColor) || DEFAULT_CONFIG.observerModalBgColor
   };
 }
 
@@ -1485,6 +1515,47 @@ export function apply(ctx) {
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/toggle', handler: withRequestGuard(ctx, handlePluginsToggle) });
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/plugins/update', handler: withRequestGuard(ctx, handlePluginsUpdate) });
   ctx.webServer.register({ kind: 'exact', path: '/api/azure-glass/mermaid.js', handler: withRequestGuard(ctx, handleMermaidBundle) });
+
+  // 内置效率增强模块管理（cookie-guard / drag-and-drop / chat-link-actions / conversation-search）
+  const addonsManager = createAddonsManager(ctx, readConfigFile);
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/azure-glass/addons/status',
+    handler: withRequestGuard(ctx, (req, res) => {
+      if (setCors(req, res)) return;
+      if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+      sendJson(res, 200, { ok: true, status: addonsManager.getStatus() });
+    })
+  });
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/azure-glass/addons/sync',
+    handler: withRequestGuard(ctx, async (req, res) => {
+      if (setCors(req, res)) return;
+      if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
+      await addonsManager.syncAll();
+      sendJson(res, 200, { ok: true, status: addonsManager.getStatus() });
+    })
+  });
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/azure-glass/addons/client',
+    handler: withRequestGuard(ctx, (req, res) => {
+      if (setCors(req, res)) return;
+      if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+      const urlObj = new URL(req.url || '/', 'http://localhost');
+      serveAddonClientBundle(urlObj.searchParams.get('name') || '', res);
+    })
+  });
+  void addonsManager.syncAll().catch((err) => {
+    ctx.logger?.warn?.(`[dsh-azure-glass] addons syncAll error: ${err?.message || err}`);
+  });
+  if (typeof ctx.on === 'function') {
+    ctx.on('dispose', () => addonsManager.disposeAll());
+  }
+
+  // 注册苍蓝上下文观察窗与多供应商实时余额 API（走同源 + connection.admit 围栏）
+  registerObserver(ctx, { withRequestGuard, setCors, sendJson });
 
   // 安全注入 /side-chat 命令（整合自已归档的 dsh-side-session）
   if (typeof ctx.inject === 'function') {
