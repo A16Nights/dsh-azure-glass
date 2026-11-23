@@ -3,12 +3,12 @@
 <p>🌐 &nbsp; <a href="README.md">简体中文</a> &nbsp;·&nbsp; <strong>English</strong></p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-en-dark.svg">
-  <img src="assets/readme/hero-en-light.svg" alt="Azure Glass · dsh-azure-glass" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-en-dark.svg?v=3">
+  <img src="assets/readme/hero-en-light.svg?v=3" alt="Azure Glass Atelier · dsh-azure-glass" width="100%">
 </picture>
 
 <p>
-  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.1.2_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.1.2 Beta"></a>
+  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.2.0_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.2.0 Beta"></a>
   <a href="https://github.com/A16Nights/dsh-azure-glass/stargazers"><img src="https://img.shields.io/github/stars/A16Nights/dsh-azure-glass?style=flat-square&label=Stars&color=38bdf8&labelColor=1e293b" alt="Stars"></a>
   <img src="https://img.shields.io/badge/DeepSeek_Harness-Desktop_%7C_Web-8b5cf6?style=flat-square&labelColor=1e293b" alt="DeepSeek Harness">
   <img src="https://img.shields.io/badge/Build_Deps-Zero-06b6d4?style=flat-square&labelColor=1e293b" alt="Zero Build Deps">
@@ -16,7 +16,7 @@
 </p>
 
 <p>
-  <strong>All-in-one performance engine and desktop-grade frosted glass customization suite for DeepSeek Harness (DSH) Desktop &amp; Web</strong>
+  <strong>All-in-one DeepSeek Harness (DSH) Workshop — Performance Engine × Frosted Glass Aesthetics × Productivity Suite × Context Observer</strong>
 </p>
 
 <p>
@@ -29,10 +29,10 @@
 </div>
 
 > [!WARNING]
-> **Early Beta Release (v0.1.2 Beta)**
+> **Early Beta Release (v0.2.0 Beta)**
 > This plugin is under active development; some features, config schemas, and UI details may evolve. Bug reports and feature ideas are welcome in [Issues](https://github.com/A16Nights/dsh-azure-glass/issues).
 
-**Azure Glass (`dsh-azure-glass`)** ships with zero build dependencies and dual workshop entry points (**Settings Page** + **Right Sidebar**), combining smooth long-conversation performance with deep desktop-grade frosted glass visual customization.
+**Azure Glass Atelier (`dsh-azure-glass`)** ships with zero build dependencies and dual workshop entry points (**Settings Page** + **Right Sidebar**), combining smooth long-conversation performance, desktop-grade frosted glass visual customization, skin & plugin update management, built-in productivity addons, and a live context observer.
 
 <table>
 <tr>
@@ -94,7 +94,7 @@ Antigravity-style merged conversation anchor rail (left/right docking + hover pr
 - **Independent 9-Zone Controls**: Tune blur radius and opacity individually for the **Top Header** (with transparent toggle), **Left Sidebar & Primary Surfaces**, **Main Chat Canvas**, **Right Sidebar Panel**, **Main Composer**, **Side Composer** (with right-margin tuning), **Message Bubbles**, **Overlays & Modals** (one-click solid high-contrast), and **Code Diff Views** (one-click solid high-contrast).
 - **Personal Preset Library**: Save your entire glass + color configuration as named presets for instant switching.
 
-### 🎨 4. Color Typography & Azure Glass Studio Theme Center
+### 🎨 4. Color Typography & Azure Glass Atelier Theme Center
 - **Built-in Color Themes**: Follow System, Azure Mirage, Mariana Deep, Sakura Soft, and Midnight Violet-Gold.
 - **Full Granular Palette**:
   - **18 UI Semantic Colors**: Canvas, 3 surface tiers, sidebar, menus, accent & accent-text, 3 text tiers & links, 2 border tiers, hover/selection, user bubble, and code blocks;
@@ -125,7 +125,7 @@ Antigravity-style merged conversation anchor rail (left/right docking + hover pr
 
 ```mermaid
 flowchart LR
-  UI["Azure Glass Dual Workshop<br/>Settings &amp; Right Sidebar"] --> PERF["Performance Engine<br/>DOM Virtualization · Keep-Alive · Chunked Viewer"]
+  UI["Azure Glass Atelier Workshop<br/>Settings &amp; Right Sidebar"] --> PERF["Performance Engine<br/>DOM Virtualization · Keep-Alive · Chunked Viewer"]
   UI --> VIS["Visual Customization<br/>Wallpapers/3D · 9-Zone Glass · 18+9 Palette · FX/Avatars"]
   UI --> NAV["Interaction Polish<br/>Merged Anchor Rail · Glaze Dock · Code Fold"]
   WE{"Wallpaper Engine Detected?"} -->|"WE Wallpaper Active"| YIELD["Auto-Yield Wallpaper &amp; Parallax<br/>Lossless Restore When Disabled"]
@@ -134,8 +134,8 @@ flowchart LR
 
 ### 🤝 Deep Coexistence with Wallpaper Engine
 - **Zero-Clutter Auto-Detection**: Coexistence controls appear automatically only when `dsh-plugin-wallpaper-engine` is installed.
-- **Automatic Wallpaper Yielding**: Pauses Azure Glass's own wallpaper & 3D parallax whenever a Wallpaper Engine wallpaper is active, restoring seamlessly once disabled.
-- **Per-Module Ownership Toggles**: Independently choose whether **Azure Glass** or **Wallpaper Engine** owns **Frosted Glass**, **Colors / Fonts / Caret**, and **Custom Avatars**—preventing conflicting styles cleanly.
+- **Automatic Wallpaper Yielding**: Pauses Azure Glass Atelier's own wallpaper & 3D parallax whenever a Wallpaper Engine wallpaper is active, restoring seamlessly once disabled.
+- **Per-Module Ownership Toggles**: Independently choose whether **Azure Glass Atelier** or **Wallpaper Engine** owns **Frosted Glass**, **Colors / Fonts / Caret**, and **Custom Avatars**—preventing conflicting styles cleanly.
 
 <h2 id="install">
 <picture>

@@ -296,7 +296,8 @@ window.__ModuleLoader__.load({
 			position: "fixed",
 			inset: "0",
 			zIndex: "9999",
-			background: T.overlayBg,
+			background: "transparent",
+			pointerEvents: "none",
 			display: "flex",
 			alignItems: "flex-start",
 			justifyContent: "center",
@@ -307,6 +308,7 @@ window.__ModuleLoader__.load({
 
 		var panelStyle = {
 			position: "relative",
+			pointerEvents: "auto",
 			width: "min(640px, calc(100vw - 48px))",
 			maxHeight: "72vh",
 			display: "flex",
@@ -1916,15 +1918,36 @@ window.__ModuleLoader__.load({
 			var approxTickState = React.useState(0);
 			var setApproxTick = approxTickState[1];
 
-			// 0.5.7：面板可拖动（顶栏＝输入行，按住非按钮区域拖动）+ 右上角关闭按钮。
-			// 位置不持久化：每次打开回到居中；拖动量只看本次会话内的 state。
+			// 面板可拖动（顶部拖拽条 / 顶栏与底栏空白处按住拖动）+ 右上角关闭按钮。
 			var panelRef = React.useRef(null);
 			var dragOffsetState = React.useState({ x: 0, y: 0 });
 			var dragOffset = dragOffsetState[0];
 			var setDragOffset = dragOffsetState[1];
+			var draggingState = React.useState(false);
+			var dragging = draggingState[0];
+			var setDragging = draggingState[1];
 			var dragOffsetRef = React.useRef({ x: 0, y: 0 });
 			dragOffsetRef.current = dragOffset;
-			var dragRef = React.useRef({ active: false, moved: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
+			var dragRef = React.useRef({ active: false, moved: false, startX: 0, startY: 0, baseX: 0, baseY: 0, immediate: false });
+			var modalVisualState = React.useState(function () {
+				try {
+					if (window.__dshAzureGlassSearchStyle__ && typeof window.__dshAzureGlassSearchStyle__.get === "function") {
+						return window.__dshAzureGlassSearchStyle__.get();
+					}
+				} catch (e) { /* 忽略 */ }
+				return { opacity: 0.86, blurPx: 20 };
+			});
+			var modalVisual = modalVisualState[0];
+			var setModalVisual = modalVisualState[1];
+			React.useEffect(function () {
+				var bridge = window.__dshAzureGlassSearchStyle__;
+				if (!bridge || typeof bridge.subscribe !== "function") return;
+				var sync = function () {
+					try { setModalVisual(bridge.get()); } catch (e) { /* 忽略 */ }
+				};
+				sync();
+				return bridge.subscribe(sync);
+			}, []);
 			/** 把拖动量夹到视口内：面板默认贴顶（paddingTop 11vh）水平居中，这里按
 			 * 面板尺寸与窗口尺寸算可行区间，避免拖出屏幕后再拖不回来。 */
 			function clampDragOffset(x, y) {
@@ -1938,26 +1961,34 @@ window.__ModuleLoader__.load({
 					y: Math.max(minY, Math.min(Math.max(minY, maxY), y)),
 				};
 			}
-			function onTitleMouseDown(event) {
+			function startDrag(event, immediate) {
 				if (event.button !== 0) return;
 				var target = event.target;
-				// 按钮/关闭键交给各自点击处理；输入框允许拖动（超过阈值才算拖，
-				// 单击仍能聚焦）。
-				if (target && target.closest && target.closest("button")) return;
+				if (target && target.closest && target.closest("button, input, textarea, select, label, a")) return;
+				if (immediate) {
+					event.preventDefault();
+					document.body.style.userSelect = "none";
+					setDragging(true);
+				}
 				dragRef.current = {
-					active: true, moved: false,
+					active: true, moved: Boolean(immediate), immediate: Boolean(immediate),
 					startX: event.clientX, startY: event.clientY,
 					baseX: dragOffsetRef.current.x, baseY: dragOffsetRef.current.y, blurred: false,
 				};
 			}
+			function onTitleMouseDown(event) {
+				startDrag(event, false);
+			}
+			function onDragBarMouseDown(event) {
+				startDrag(event, true);
+			}
 			function closePanel() {
-				// 0.5.9：三处关闭（Esc / × / 遮罩）统一走这里——作废在飞的定位循环
-				// 并收掉常驻 toast。旧实现只有 Esc 做了，点 × 或遮罩后滚动/加载
-				// 链仍在跑，还会继续弹 toast（审查 C1）。
+				// 0.5.9：统一关闭路径——作废在飞的定位循环并收掉常驻 toast。
 				locateSeq += 1;
 				hideToast();
-				setDragOffset({ x: 0, y: 0 });
 				dragRef.current.active = false;
+				setDragging(false);
+				document.body.style.userSelect = "";
 				setOpen(false);
 			}
 			React.useEffect(function () {
@@ -1967,10 +1998,12 @@ window.__ModuleLoader__.load({
 					var dx = event.clientX - d.startX;
 					var dy = event.clientY - d.startY;
 					if (!d.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
-					d.moved = true;
+					if (!d.moved) {
+						d.moved = true;
+						document.body.style.userSelect = "none";
+						setDragging(true);
+					}
 					try { window.getSelection().removeAllRanges(); } catch (e) { /* 无选区服务时忽略 */ }
-					// 0.5.9（审查 C4）：真拖动时先失焦输入框——否则拖完松手仍把焦点留在
-					// 输入框，后续打字会直接改查询词（用户以为在挪窗口）。
 					if (!d.blurred) {
 						d.blurred = true;
 						try {
@@ -1984,6 +2017,7 @@ window.__ModuleLoader__.load({
 					var d = dragRef.current;
 					if (!d.active) return;
 					d.active = false;
+					setDragging(false);
 					document.body.style.userSelect = "";
 				}
 				// 0.5.9（审查 C4）：窗口尺寸变化后把已偏移的面板夹回可见区
@@ -2194,7 +2228,6 @@ window.__ModuleLoader__.load({
 
 			var locateSelected = function (hitItem) {
 				if (!hitItem) return;
-				setOpen(false);
 				locateHit(ctx, hitItem, hitItem.words || queryWords(query), hitItem.hitMode || mode, hitItem.hitPattern || query).then(function (outcome) {
 					if (outcome && outcome.ok) {
 						// 0.2.14：命中落在折叠区（只到大纲位置）→ 打「≈ 折叠区」标，
@@ -2259,23 +2292,30 @@ window.__ModuleLoader__.load({
 
 			return h("div", {
 				style: overlayStyle,
-				// 0.5.9：遮罩点击同样走 closePanel（原来直接 setOpen(false)，
-				// 在飞的定位循环与常驻 toast 都留了下来）。
-				onMouseDown: function () { closePanel(); },
 			}, h("div", {
 				ref: panelRef,
+				className: "dsh-ag-cs-panel",
+				"data-dragging": dragging ? "1" : "0",
 				style: Object.assign({}, panelStyle, {
 					transform: "translate(" + dragOffset.x + "px, " + dragOffset.y + "px)",
 				}),
-				onMouseDown: function (event) { event.stopPropagation(); },
 			},
+				// 顶部拖拽抓手栏
+				h("div", {
+					className: "dsh-ag-cs-drag-bar",
+					title: "按住拖动窗口位置",
+					onMouseDown: onDragBarMouseDown,
+				},
+					h("span", { className: "dsh-ag-cs-drag-pill" }),
+				),
 				// 输入行
 				h("div", {
-					style: Object.assign({}, inputRowStyle, { cursor: "move" }),
+					style: Object.assign({}, inputRowStyle, { cursor: "grab" }),
 					onMouseDown: onTitleMouseDown,
 				},
 					h("input", {
 						ref: inputRef,
+						className: "dsh-ag-cs-input",
 						style: inputStyle,
 						value: query,
 						placeholder: t("placeholder"),
@@ -2287,6 +2327,9 @@ window.__ModuleLoader__.load({
 						spellCheck: false,
 					}),
 					h("button", {
+						type: "button",
+						className: "dsh-ag-cs-btn",
+						"data-active": scope === "current" ? "1" : "0",
 						style: scopeBtnStyle(scope === "current"),
 						title: scopeCurrentId ? t("scopeCurrent") : t("scopeAll"),
 						onClick: function () {
@@ -2294,33 +2337,47 @@ window.__ModuleLoader__.load({
 						},
 					}, t("scopeCurrent")),
 					h("button", {
+						type: "button",
+						className: "dsh-ag-cs-btn",
+						"data-active": scope === "all" ? "1" : "0",
 						style: scopeBtnStyle(scope === "all"),
 						onClick: function () { setScope("all"); },
 					}, t("scopeAll")),
 					h("button", {
+						type: "button",
+						className: "dsh-ag-cs-btn",
+						"data-active": mode === "loose" ? "1" : "0",
 						style: scopeBtnStyle(mode === "loose"),
 						title: t("looseTip"),
 						onClick: function () { setMode("loose"); },
 					}, t("modeLoose")),
 					h("button", {
+						type: "button",
+						className: "dsh-ag-cs-btn",
+						"data-active": mode === "exact" ? "1" : "0",
 						style: scopeBtnStyle(mode === "exact"),
 						title: t("exactTip"),
 						onClick: function () { setMode("exact"); },
 					}, t("modeExact")),
 					h("button", {
+						type: "button",
+						className: "dsh-ag-cs-btn",
+						"data-active": mode === "regex" ? "1" : "0",
 						style: scopeBtnStyle(mode === "regex"),
 						title: t("regexTip"),
 						onClick: function () { setMode("regex"); },
 					}, t("modeRegex")),
-					// 0.5.7：右上角关闭（Esc / 点遮罩仍可用）。
+					// 右上角关闭（Esc 仍可用；点击外部不关闭）
 					h("button", {
+						type: "button",
+						className: "dsh-ag-cs-close",
 						style: closeBtnStyle,
 						title: t("close"),
 						onClick: closePanel,
 					}, "×"),
 				),
-				// 状态行
-				h("div", { style: statusBarStyle }, status.text),
+				// 状态行（空白处也可按住拖动）
+				h("div", { style: Object.assign({}, statusBarStyle, { cursor: "grab" }), onMouseDown: onDragBarMouseDown }, status.text),
 				// 结果列表
 				h("div", { style: resultListStyle },
 					hits.length === 0
@@ -2335,6 +2392,7 @@ window.__ModuleLoader__.load({
 								var folded = approxRef.current[hitItem.sessionId + "#" + hitItem.seq];
 								return h("div", {
 									key: hitItem.sessionId + "#" + hitItem.seq + "#" + index,
+									className: "dsh-ag-cs-hit",
 									style: hitRowStyleFor(index === selected || index === hover),
 									onMouseEnter: function () { setHover(index); },
 									onMouseLeave: function () {
@@ -2385,11 +2443,14 @@ window.__ModuleLoader__.load({
 							});
 						})()
 				),
-				// 底栏（0.2.27：加 ⚙ 设置开关）
-				h("div", { style: footerStyle },
+				// 底栏（空白处支持拖动 + ⚙ 设置开关）
+				h("div", { style: Object.assign({}, footerStyle, { cursor: "grab" }), onMouseDown: onDragBarMouseDown },
 					h("div", { style: { display: "flex", alignItems: "center", gap: "8px", minWidth: 0 } },
-						h("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t("hint") + " · c" + CLIENT_VERSION),
+						h("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t("hint")),
 						h("button", {
+							type: "button",
+							className: "dsh-ag-cs-foot-btn",
+							"data-active": showSettings ? "1" : "0",
 							style: continueBtnStyle,
 							title: t("settings"),
 							onClick: function () { setShowSettings(function (v) { return !v; }); },
@@ -2397,13 +2458,17 @@ window.__ModuleLoader__.load({
 					),
 					hits.length > renderLimit
 						? h("button", {
+							type: "button",
+							className: "dsh-ag-cs-foot-btn",
 							style: continueBtnStyle,
 							onClick: function () { setRenderLimit(renderLimit + RENDER_PAGE); },
 						}, t("showMore") + " (" + (hits.length - renderLimit) + ")")
 						: null,
 					result.truncated
 						? h("button", {
-							style: continueBtnStyle,
+							type: "button",
+							className: "dsh-ag-cs-foot-btn",
+							disabled: busy,
 							style: Object.assign({}, continueBtnStyle, busy ? { opacity: 0.5, cursor: "default" } : {}),
 							onClick: function () { if (!busy) runSearch(query, scope, scannedOffsetRef.current, mode); },
 						}, t("continueScan"))
@@ -2417,6 +2482,51 @@ window.__ModuleLoader__.load({
 					},
 				},
 					h("div", { style: { marginBottom: "8px", fontWeight: "600", color: T.textTertiary } }, t("settings")),
+					// 独立透明度与毛玻璃模糊快捷调节（与工坊双向实时同步）
+					h("div", { style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "10px", paddingBottom: "8px", borderBottom: T.borderSoft } },
+						h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
+							h("span", { style: { color: T.textSecondary, whiteSpace: "nowrap" } }, "透明度 " + Math.round((modalVisual.opacity ?? 0.86) * 100) + "%"),
+							h("input", {
+								type: "range", min: 0.15, max: 0.98, step: 0.01,
+								value: Number(modalVisual.opacity ?? 0.86),
+								style: { width: "92px", cursor: "pointer" },
+								onChange: function (event) {
+									var v = Number(event.target.value);
+									setModalVisual(function (prev) { return { opacity: v, blurPx: prev.blurPx }; });
+									try {
+										if (window.__dshAzureGlassSearchStyle__) window.__dshAzureGlassSearchStyle__.update({ opacity: v }, true);
+									} catch (e) { /* 忽略 */ }
+								},
+							}),
+						),
+						h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
+							h("span", { style: { color: T.textSecondary, whiteSpace: "nowrap" } }, "模糊 " + Math.round(modalVisual.blurPx ?? 20) + "px"),
+							h("input", {
+								type: "range", min: 0, max: 40, step: 1,
+								value: Number(modalVisual.blurPx ?? 20),
+								style: { width: "92px", cursor: "pointer" },
+								onChange: function (event) {
+									var v = Number(event.target.value);
+									setModalVisual(function (prev) { return { opacity: prev.opacity, blurPx: v }; });
+									try {
+										if (window.__dshAzureGlassSearchStyle__) window.__dshAzureGlassSearchStyle__.update({ blurPx: v }, true);
+									} catch (e) { /* 忽略 */ }
+								},
+							}),
+						),
+						h("button", {
+							type: "button",
+							className: "dsh-ag-cs-foot-btn",
+							style: continueBtnStyle,
+							title: "恢复默认透明度（86%）与模糊（20px）",
+							onClick: function () {
+								setModalVisual({ opacity: 0.86, blurPx: 20 });
+								try {
+									if (window.__dshAzureGlassSearchStyle__) window.__dshAzureGlassSearchStyle__.update({ opacity: 0.86, blurPx: 20 }, true);
+								} catch (e) { /* 忽略 */ }
+							},
+						}, "重置外观"),
+					),
 					h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
 						h("label", { style: { flex: "none" } }, t("autoLoadBudget")),
 						h("input", {
@@ -2652,9 +2762,11 @@ window.__ModuleLoader__.load({
 					order: 15,
 				}, function SearchDockButton() {
 					return h("button", {
+						type: "button",
+						className: "dsh-ag-cs-dock-btn",
 						title: t("shortcutLabel"),
 						"aria-label": t("shortcutLabel"),
-						onClick: function () { setOpen(true); },
+						onClick: function () { setOpen(!holder.open); },
 						style: {
 							width: "26px",
 							height: "26px",

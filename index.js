@@ -45,7 +45,7 @@ function readPluginVersion() {
     const parsed = JSON.parse(raw);
     if (typeof parsed?.version === 'string' && parsed.version.trim()) return parsed.version.trim();
   } catch {}
-  return '0.1.0';
+  return '0.2.0';
 }
 const GITHUB_REPO = 'A16Nights/dsh-azure-glass';
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -218,10 +218,14 @@ const DEFAULT_CONFIG = Object.freeze({
   dragAndDropEnabled: true,
   chatLinkActionsEnabled: true,
   conversationSearchEnabled: true,
+  searchModalOpacity: 0.86,
+  searchModalBlurPx: 20,
 
   // 12. 苍蓝上下文观察窗与底部胶囊状态条（内置多供应商实时余额/额度）
   observerEnabled: true,
   observerShowBalance: true,
+  observerGlassPill: true,
+  observerHideNativeStats: true,
   observerModalOpacity: 0.86,
   observerModalBlurPx: 22,
   observerModalBgColor: '#1a1d29'
@@ -414,8 +418,12 @@ function normalizeConfig(raw) {
     dragAndDropEnabled: src.dragAndDropEnabled !== undefined ? Boolean(src.dragAndDropEnabled) : DEFAULT_CONFIG.dragAndDropEnabled,
     chatLinkActionsEnabled: src.chatLinkActionsEnabled !== undefined ? Boolean(src.chatLinkActionsEnabled) : DEFAULT_CONFIG.chatLinkActionsEnabled,
     conversationSearchEnabled: src.conversationSearchEnabled !== undefined ? Boolean(src.conversationSearchEnabled) : DEFAULT_CONFIG.conversationSearchEnabled,
+    searchModalOpacity: clamp(src.searchModalOpacity, 0.15, 0.98, DEFAULT_CONFIG.searchModalOpacity),
+    searchModalBlurPx: Math.round(clamp(src.searchModalBlurPx, 0, 40, DEFAULT_CONFIG.searchModalBlurPx)),
     observerEnabled: src.observerEnabled !== undefined ? Boolean(src.observerEnabled) : DEFAULT_CONFIG.observerEnabled,
     observerShowBalance: src.observerShowBalance !== undefined ? Boolean(src.observerShowBalance) : DEFAULT_CONFIG.observerShowBalance,
+    observerGlassPill: src.observerGlassPill !== undefined ? Boolean(src.observerGlassPill) : DEFAULT_CONFIG.observerGlassPill,
+    observerHideNativeStats: src.observerHideNativeStats !== undefined ? Boolean(src.observerHideNativeStats) : DEFAULT_CONFIG.observerHideNativeStats,
     observerModalOpacity: clamp(src.observerModalOpacity, 0.15, 0.98, DEFAULT_CONFIG.observerModalOpacity),
     observerModalBlurPx: Math.round(clamp(src.observerModalBlurPx, 0, 40, DEFAULT_CONFIG.observerModalBlurPx)),
     observerModalBgColor: cleanColor(src.observerModalBgColor) || DEFAULT_CONFIG.observerModalBgColor

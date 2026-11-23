@@ -396,6 +396,9 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       const stepItems = [];
       let lastStepStartTs = 0;
       let lastDerivedTokPerSec = 0;
+      let totalModelDurationMs = 0;
+      let ttftSumMs = 0;
+      let ttftCount = 0;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -482,8 +485,20 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
             if (isDeepSeekModel(mName) || isDeepSeekProvider(pName)) {
               spendCny = round2(spendCny + calcDeepSeekCostCny(mName, ctxIn, u.cacheRead, u.output));
             }
-            if (lastStepStartTs > 0 && Number(o.time) > lastStepStartTs && u.output > 20) {
-              const sec = Math.max(0.2, (Number(o.time) - lastStepStartTs) / 1000);
+            const explicitDur = toNum(msg.durationMs ?? d.durationMs ?? o.durationMs ?? msg.metrics?.durationMs ?? d.metrics?.durationMs);
+            const explicitTtft = toNum(msg.ttftMs ?? d.ttftMs ?? o.ttftMs ?? msg.firstTokenMs ?? d.firstTokenMs ?? msg.metrics?.ttftMs ?? d.metrics?.ttftMs);
+            if (explicitTtft !== null && explicitTtft > 0 && explicitTtft < 600000) {
+              ttftSumMs += explicitTtft;
+              ttftCount++;
+            }
+            let stepDurMs = explicitDur !== null && explicitDur > 0 && explicitDur < 3600000 ? explicitDur : 0;
+            if (stepDurMs <= 0 && lastStepStartTs > 0 && Number(o.time) > lastStepStartTs) {
+              const diff = Number(o.time) - lastStepStartTs;
+              if (diff > 0 && diff < 3600000) stepDurMs = diff;
+            }
+            if (stepDurMs > 0) totalModelDurationMs += stepDurMs;
+            if (stepDurMs > 0 && u.output > 5) {
+              const sec = Math.max(0.2, stepDurMs / 1000);
               const spd = Math.round((u.output / sec) * 10) / 10;
               if (spd > 0 && spd < 5000) lastDerivedTokPerSec = spd;
             }
@@ -578,9 +593,12 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
         biliCompactions,
         biliDecompactions,
         tokPerSec: lastDerivedTokPerSec,
+        modelDurationSec: totalModelDurationMs > 0 ? Math.round((totalModelDurationMs / 1000) * 10) / 10 : 0,
+        avgTtftSec: ttftCount > 0 ? Math.round(((ttftSumMs / ttftCount) / 1000) * 10) / 10 : 0,
         currentContextTokens: effectiveCtx,
         contextPct: finalWindow > 0 ? Math.min(100, Math.round((effectiveCtx / finalWindow) * 1000) / 10) : 0,
         totalInputTokens: totalInput,
+        uncachedInputTokens: Math.max(0, totalInput - totalCacheRead),
         totalCacheReadTokens: totalCacheRead,
         totalOutputTokens: totalOutput,
         totalAllTokens: totalInput + totalOutput,

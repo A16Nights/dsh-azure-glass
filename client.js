@@ -21,7 +21,7 @@ window.__ModuleLoader__.load({
     const jsxs = jsxRuntime.jsxs;
 
     const NS = 'dsh-azure-glass';
-    const PLUGIN_VERSION = '0.1.0';
+    const PLUGIN_VERSION = '0.2.0';
     const SECTION_SLOT = 'settings.section';
     const STYLE_ID = 'dsh-azure-glass-style';
     const CACHE_KEY = 'dsh_azure_glass_config_v3';
@@ -205,8 +205,12 @@ window.__ModuleLoader__.load({
       dragAndDropEnabled: true,
       chatLinkActionsEnabled: true,
       conversationSearchEnabled: true,
+      searchModalOpacity: 0.86,
+      searchModalBlurPx: 20,
       observerEnabled: true,
       observerShowBalance: true,
+      observerGlassPill: true,
+      observerHideNativeStats: true,
       observerModalOpacity: 0.86,
       observerModalBlurPx: 22,
       observerModalBgColor: '#1a1d29'
@@ -430,7 +434,7 @@ window.__ModuleLoader__.load({
     };
 
     const zh = { nav: '苍蓝琉璃', heading: '苍蓝琉璃工坊' };
-    const en = { nav: 'Azure Glass', heading: 'Azure Glass Studio' };
+    const en = { nav: 'Azure Glass', heading: 'Azure Glass Atelier' };
 
     // -----------------------------------------------------------------------
     // WCAG Contrast & Color Helpers (ColorLab parity)
@@ -533,6 +537,35 @@ window.__ModuleLoader__.load({
       if (immediateSave) void doSave();
       else saveTimer = setTimeout(doSave, 280);
     }
+
+    try {
+      window.__dshAzureGlassSearchStyle__ = {
+        get() {
+          const op = Number(config.searchModalOpacity);
+          const bl = Number(config.searchModalBlurPx);
+          return {
+            opacity: Number.isFinite(op) ? Math.max(0.15, Math.min(0.98, op)) : 0.86,
+            blurPx: Number.isFinite(bl) ? Math.max(0, Math.min(40, Math.round(bl))) : 20
+          };
+        },
+        update(patch, immediate = true) {
+          if (!patch || typeof patch !== 'object') return;
+          const next = {};
+          if (patch.opacity !== undefined) {
+            const v = Number(patch.opacity);
+            if (Number.isFinite(v)) next.searchModalOpacity = Math.max(0.15, Math.min(0.98, v));
+          }
+          if (patch.blurPx !== undefined) {
+            const v = Number(patch.blurPx);
+            if (Number.isFinite(v)) next.searchModalBlurPx = Math.max(0, Math.min(40, Math.round(v)));
+          }
+          if (Object.keys(next).length > 0) updateConfig(next, immediate);
+        },
+        subscribe(fn) {
+          return typeof fn === 'function' ? subscribe(fn) : () => {};
+        }
+      };
+    } catch {}
 
     async function loadFromHost() {
       try {
@@ -3903,6 +3936,134 @@ window.__ModuleLoader__.load({
         }
         .dsh-sg-power-btn:active:not(:disabled) {
           transform: scale(0.94);
+        }
+        /* 会话全文搜索弹窗独立透明/模糊 & 全按钮悬停反馈 */
+        .dsh-ag-cs-panel {
+          background: ${isLight
+            ? `rgba(255, 255, 255, ${Math.max(0.15, Math.min(0.98, Number(config.searchModalOpacity ?? 0.86)))})`
+            : `rgba(15, 21, 34, ${Math.max(0.15, Math.min(0.98, Number(config.searchModalOpacity ?? 0.86)))})`} !important;
+          backdrop-filter: blur(${Math.max(0, Math.min(40, Math.round(Number(config.searchModalBlurPx ?? 20))))}px) saturate(135%) !important;
+          -webkit-backdrop-filter: blur(${Math.max(0, Math.min(40, Math.round(Number(config.searchModalBlurPx ?? 20))))}px) saturate(135%) !important;
+          border: 1px solid ${isLight ? 'rgba(15, 23, 42, 0.14)' : 'rgba(255, 255, 255, 0.14)'} !important;
+          box-shadow: ${isLight ? '0 16px 42px rgba(15, 23, 42, 0.16)' : '0 18px 48px rgba(0, 0, 0, 0.48)'} !important;
+          transition: box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .dsh-ag-cs-panel[data-dragging="1"] {
+          box-shadow: ${isLight ? `0 22px 52px rgba(15, 23, 42, 0.22), 0 0 0 1px ${stUi.p}` : `0 24px 60px rgba(0, 0, 0, 0.62), 0 0 0 1px ${stUi.p}`} !important;
+          border-color: ${stUi.p} !important;
+        }
+        .dsh-ag-cs-drag-bar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          height: 22px;
+          padding: 0 12px;
+          cursor: grab;
+          user-select: none;
+          border-bottom: 1px solid ${isLight ? 'rgba(15, 23, 42, 0.06)' : 'rgba(255, 255, 255, 0.06)'};
+          transition: background 0.15s ease;
+        }
+        .dsh-ag-cs-drag-bar:hover {
+          background: ${isLight ? hexRgba(stUi.p, 0.07) : 'rgba(255, 255, 255, 0.045)'};
+        }
+        .dsh-ag-cs-drag-bar:active,
+        .dsh-ag-cs-panel[data-dragging="1"] .dsh-ag-cs-drag-bar {
+          cursor: grabbing;
+          background: ${isLight ? hexRgba(stUi.p, 0.11) : 'rgba(255, 255, 255, 0.07)'};
+        }
+        .dsh-ag-cs-drag-pill {
+          width: 38px;
+          height: 4px;
+          border-radius: 999px;
+          background: ${isLight ? 'rgba(100, 116, 139, 0.34)' : 'rgba(148, 163, 184, 0.38)'};
+          transition: width 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+        }
+        .dsh-ag-cs-drag-bar:hover .dsh-ag-cs-drag-pill,
+        .dsh-ag-cs-panel[data-dragging="1"] .dsh-ag-cs-drag-pill {
+          width: 54px;
+          background: ${stUi.p};
+          box-shadow: 0 0 8px ${stUi.glowShadow};
+        }
+        .dsh-ag-cs-input {
+          transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+        }
+        .dsh-ag-cs-input:hover {
+          border-color: ${stUi.hoverBorder} !important;
+          background: ${isLight ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.04)'} !important;
+        }
+        .dsh-ag-cs-input:focus {
+          border-color: ${stUi.p} !important;
+          box-shadow: 0 0 0 2px ${stUi.focusRing} !important;
+          background: ${isLight ? 'rgba(255, 255, 255, 0.65)' : 'rgba(255, 255, 255, 0.06)'} !important;
+        }
+        .dsh-ag-cs-btn {
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease !important;
+        }
+        .dsh-ag-cs-btn:hover {
+          border-color: ${stUi.hoverBorder} !important;
+          background: ${isLight ? hexRgba(stUi.p, 0.10) : hexRgba(stUi.p, 0.16)} !important;
+          color: ${isLight ? stUi.titleText : '#ffffff'} !important;
+          box-shadow: 0 2px 10px ${stUi.glowShadow} !important;
+          transform: translateY(-1px);
+        }
+        .dsh-ag-cs-btn[data-active="1"] {
+          background: ${isLight ? hexRgba(stUi.p, 0.14) : hexRgba(stUi.p, 0.20)} !important;
+          box-shadow: 0 0 0 1px ${hexRgba(stUi.p, 0.32)}, 0 2px 10px ${stUi.glowShadow} !important;
+        }
+        .dsh-ag-cs-btn[data-active="1"]:hover {
+          filter: brightness(1.1);
+          box-shadow: 0 0 0 1px ${stUi.p}, 0 4px 14px ${stUi.glowShadowStrong} !important;
+        }
+        .dsh-ag-cs-btn:active {
+          transform: scale(0.95);
+        }
+        .dsh-ag-cs-close {
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease !important;
+        }
+        .dsh-ag-cs-close:hover {
+          border-color: rgba(248, 113, 113, 0.62) !important;
+          background: rgba(239, 68, 68, 0.18) !important;
+          color: ${isLight ? '#dc2626' : '#f87171'} !important;
+          box-shadow: 0 0 10px rgba(239, 68, 68, 0.26) !important;
+          transform: translateY(-1px);
+        }
+        .dsh-ag-cs-close:active {
+          transform: scale(0.92);
+        }
+        .dsh-ag-cs-foot-btn {
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease !important;
+        }
+        .dsh-ag-cs-foot-btn:hover:not(:disabled) {
+          border-color: ${stUi.p} !important;
+          background: ${isLight ? hexRgba(stUi.p, 0.12) : hexRgba(stUi.p, 0.20)} !important;
+          color: ${isLight ? stUi.titleText : '#ffffff'} !important;
+          box-shadow: 0 2px 10px ${stUi.glowShadow} !important;
+          transform: translateY(-1px);
+        }
+        .dsh-ag-cs-foot-btn[data-active="1"] {
+          border-color: ${stUi.p} !important;
+          background: ${isLight ? hexRgba(stUi.p, 0.14) : hexRgba(stUi.p, 0.22)} !important;
+          color: ${stUi.p} !important;
+        }
+        .dsh-ag-cs-foot-btn:active:not(:disabled) {
+          transform: scale(0.94);
+        }
+        .dsh-ag-cs-dock-btn {
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease !important;
+        }
+        .dsh-ag-cs-dock-btn:hover {
+          border-color: ${stUi.p} !important;
+          background: ${isLight ? hexRgba(stUi.p, 0.12) : hexRgba(stUi.p, 0.18)} !important;
+          color: ${stUi.p} !important;
+          box-shadow: 0 0 10px ${stUi.glowShadow} !important;
+          transform: translateY(-1px);
+        }
+        .dsh-ag-cs-dock-btn:active {
+          transform: scale(0.93);
+        }
+        .dsh-ag-cs-hit {
+          transition: background 0.14s ease !important;
         }
         .dsh-sg-btn[data-active="1"],
         .dsh-sg-btn-primary {
@@ -10976,6 +11137,21 @@ window.__ModuleLoader__.load({
         return jsx('span', { style: { fontSize: '10.5px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(148,163,184,0.18)', color: '#94a3b8' }, children: '已关闭' });
       };
 
+      const renderSwitchBtn = ({ enabled, busy = false, label = '', onClick }) => jsx('button', {
+        type: 'button',
+        role: 'switch',
+        className: 'dsh-sg-switch',
+        'aria-checked': enabled ? 'true' : 'false',
+        'aria-label': label || (enabled ? '已开启' : '已关闭'),
+        title: enabled
+          ? `${label ? `${label}：` : ''}已开启（点击关闭）`
+          : `${label ? `${label}：` : ''}已关闭（点击开启）`,
+        disabled: Boolean(busy),
+        style: busy ? { opacity: 0.55, cursor: 'wait' } : undefined,
+        onClick,
+        children: jsx('span', { className: 'dsh-sg-switch-thumb' })
+      });
+
       const items = [
         {
           modKey: 'cookieGuard',
@@ -11047,13 +11223,11 @@ window.__ModuleLoader__.load({
                           jsx('div', { className: 'dsh-sg-sub', style: { fontSize: '11.5px', marginTop: '3px' }, children: it.desc })
                         ]
                       }),
-                      jsx('button', {
-                        type: 'button',
-                        className: 'dsh-sg-btn',
-                        'data-active': on ? '1' : '0',
-                        disabled: busyKey === it.modKey,
-                        onClick: () => void onToggleAddon(it.cfgKey, it.modKey),
-                        children: busyKey === it.modKey ? '切换中...' : (on ? '已开启' : '已关闭')
+                      renderSwitchBtn({
+                        enabled: on,
+                        busy: busyKey === it.modKey,
+                        label: it.title.replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, ''),
+                        onClick: () => void onToggleAddon(it.cfgKey, it.modKey)
                       })
                     ]
                   });
@@ -11089,14 +11263,14 @@ window.__ModuleLoader__.load({
               })
             ]
           }) : null,
-          jsxs('div', {
+          cfg.conversationSearchEnabled !== false ? jsxs('div', {
             className: 'dsh-sg-card',
             children: [
-              jsx('h4', { children: '🔭 苍蓝上下文观察窗与实时余额' }),
+              jsx('h4', { children: '🔎 会话全文搜索弹窗外观' }),
               jsx('div', {
                 className: 'dsh-sg-sub',
                 style: { marginBottom: '10px' },
-                children: '在输入框下方显示毛玻璃胶囊状态条（轮次/步数、生成速度、缓存命中率、上下文占比、压缩次数与供应商余额），点击弹出完整上下文观察窗；可直接替代独立 dsh-balance 插件。'
+                children: '独立控制会话搜索弹窗的背景透明度与毛玻璃模糊；弹窗支持拖拽移动，点击页面其他区域不会关闭（可在弹窗内 ⚙ 设置中快捷调节）。'
               }),
               jsxs('div', {
                 style: { display: 'flex', flexDirection: 'column', gap: '8px' },
@@ -11106,19 +11280,115 @@ window.__ModuleLoader__.load({
                     children: [
                       jsxs('div', {
                         children: [
-                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '启用底部胶囊与观察窗' }),
-                          jsx('div', { className: 'dsh-sg-sub', children: '仅按需读取当前单个会话，零启动扫描开销' })
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: `搜索弹窗背景透明度：${Math.round((cfg.searchModalOpacity ?? 0.86) * 100)}%` }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '独立控制搜索浮窗底色透明程度，不影响其他弹窗' })
                         ]
                       }),
-                      jsx('button', {
-                        type: 'button',
-                        className: 'dsh-sg-btn',
-                        'data-active': cfg.observerEnabled !== false ? '1' : '0',
-                        onClick: () => updateConfig({ observerEnabled: cfg.observerEnabled === false }, true),
-                        children: cfg.observerEnabled !== false ? '已开启' : '已关闭'
+                      jsx('input', {
+                        type: 'range',
+                        min: 0.15,
+                        max: 0.98,
+                        step: 0.01,
+                        value: Number(cfg.searchModalOpacity ?? 0.86),
+                        onChange: (e) => updateConfig({ searchModalOpacity: Number(e.target.value) }, true)
                       })
                     ]
                   }),
+                  jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: `搜索弹窗背景毛玻璃模糊：${Math.round(cfg.searchModalBlurPx ?? 20)}px` }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '0px 为纯半透明无模糊，调高可获得更柔和的磨砂质感' })
+                        ]
+                      }),
+                      jsx('input', {
+                        type: 'range',
+                        min: 0,
+                        max: 40,
+                        step: 1,
+                        value: Number(cfg.searchModalBlurPx ?? 20),
+                        onChange: (e) => updateConfig({ searchModalBlurPx: Number(e.target.value) }, true)
+                      })
+                    ]
+                  }),
+                  jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsx('div', { className: 'dsh-sg-sub', children: '一键还原默认搜索弹窗透明度与模糊度（86% / 20px）' }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'dsh-sg-btn',
+                        onClick: () => updateConfig({ searchModalOpacity: 0.86, searchModalBlurPx: 20 }, true),
+                        children: '恢复默认'
+                      })
+                    ]
+                  })
+                ]
+              })
+            ]
+          }) : null,
+          jsxs('div', {
+            className: 'dsh-sg-card',
+            children: [
+              jsx('h4', { children: '🔭 苍蓝上下文观察窗与实时余额' }),
+              jsx('div', {
+                className: 'dsh-sg-sub',
+                style: { marginBottom: '10px' },
+                children: '在输入框下方显示一体化状态条（轮次/步数、生成速度、Token 用量、缓存命中率、上下文占比、压缩次数与供应商余额），点击弹出完整上下文观察窗。'
+              }),
+              jsxs('div', {
+                style: { display: 'flex', flexDirection: 'column', gap: '8px' },
+                children: [
+                  jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '启用底部观察窗状态条' }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '仅按需读取当前单个会话，零启动扫描开销' })
+                        ]
+                      }),
+                      renderSwitchBtn({
+                        enabled: cfg.observerEnabled !== false,
+                        label: '底部观察窗状态条',
+                        onClick: () => updateConfig({ observerEnabled: cfg.observerEnabled === false }, true)
+                      })
+                    ]
+                  }),
+                  cfg.observerEnabled !== false ? jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '启用底部毛玻璃胶囊按钮' }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '开启显示毛玻璃圆角胶囊外观；关闭切换为无边框极简融入样式' })
+                        ]
+                      }),
+                      renderSwitchBtn({
+                        enabled: cfg.observerGlassPill !== false,
+                        label: '底部毛玻璃胶囊按钮',
+                        onClick: () => updateConfig({ observerGlassPill: cfg.observerGlassPill === false }, true)
+                      })
+                    ]
+                  }) : null,
+                  cfg.observerEnabled !== false ? jsxs('div', {
+                    className: 'dsh-sg-row',
+                    children: [
+                      jsxs('div', {
+                        children: [
+                          jsx('div', { style: { fontSize: '12.5px', fontWeight: 600 }, children: '隐藏官方底部统计按钮' }),
+                          jsx('div', { className: 'dsh-sg-sub', children: '自动隐藏官方原有的「轮次/速度」与「Token/缓存」按钮，避免重复显示' })
+                        ]
+                      }),
+                      renderSwitchBtn({
+                        enabled: cfg.observerHideNativeStats !== false,
+                        label: '隐藏官方底部统计按钮',
+                        onClick: () => updateConfig({ observerHideNativeStats: cfg.observerHideNativeStats === false }, true)
+                      })
+                    ]
+                  }) : null,
                   cfg.observerEnabled !== false ? jsxs('div', {
                     className: 'dsh-sg-row',
                     children: [
@@ -11128,12 +11398,10 @@ window.__ModuleLoader__.load({
                           jsx('div', { className: 'dsh-sg-sub', children: '支持 DeepSeek 官方、Kimi Coding、GLM Coding、MiniMax、OpenRouter、OpenCode Go（5 分钟缓存）' })
                         ]
                       }),
-                      jsx('button', {
-                        type: 'button',
-                        className: 'dsh-sg-btn',
-                        'data-active': cfg.observerShowBalance !== false ? '1' : '0',
-                        onClick: () => updateConfig({ observerShowBalance: cfg.observerShowBalance === false }, true),
-                        children: cfg.observerShowBalance !== false ? '已开启' : '已关闭'
+                      renderSwitchBtn({
+                        enabled: cfg.observerShowBalance !== false,
+                        label: '显示当前供应商余额与额度',
+                        onClick: () => updateConfig({ observerShowBalance: cfg.observerShowBalance === false }, true)
                       })
                     ]
                   }) : null,
@@ -11242,6 +11510,24 @@ window.__ModuleLoader__.load({
           border-color: rgba(96, 165, 250, 0.45);
           transform: translateY(-0.5px);
         }
+        .dsh-ag-obs-pill[data-glass="0"] {
+          background: transparent;
+          border-color: transparent;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          color: inherit;
+          opacity: 0.86;
+          padding: 2px 6px;
+        }
+        .dsh-ag-obs-pill[data-glass="0"]:hover {
+          opacity: 1;
+          background: rgba(148, 163, 184, 0.14);
+          border-color: rgba(148, 163, 184, 0.22);
+          transform: none;
+        }
+        html[data-dsh-ag-hide-native-stats="1"] [data-dsh-ag-native-stat="1"] {
+          display: none !important;
+        }
         .dsh-ag-obs-sep { opacity: 0.4; }
         .dsh-ag-obs-pct-ok { color: #34d399; font-weight: 600; }
         .dsh-ag-obs-pct-warn { color: #fbbf24; font-weight: 600; }
@@ -11261,34 +11547,27 @@ window.__ModuleLoader__.load({
           color: #38bdf8;
           font-weight: 600;
         }
-        .dsh-ag-obs-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 2147483630;
-          background: rgba(8, 10, 18, 0.56);
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          animation: dshAgObsFadeIn 140ms ease;
+        @keyframes dshAgObsPopUp {
+          from { opacity: 0; transform: translateY(8px) scale(0.985); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes dshAgObsFadeIn { from { opacity: 0; } to { opacity: 1; } }
         .dsh-ag-obs-modal {
-          width: min(860px, 94vw);
-          max-height: 88vh;
+          position: fixed;
+          z-index: 2147483630;
+          width: min(760px, calc(100vw - 24px));
+          max-height: min(78vh, calc(100vh - 80px));
           overflow-y: auto;
           border-radius: 16px;
           background: rgba(26, 29, 41, 0.88);
           border: 1px solid rgba(148, 163, 184, 0.24);
-          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+          box-shadow: 0 20px 56px rgba(0, 0, 0, 0.52);
           backdrop-filter: blur(22px) saturate(140%);
           -webkit-backdrop-filter: blur(22px) saturate(140%);
           color: #e2e8f0;
-          padding: 18px 20px 14px;
+          padding: 16px 18px 13px;
           font-family: inherit;
           font-variant-numeric: tabular-nums;
+          animation: dshAgObsPopUp 150ms cubic-bezier(0.22, 1, 0.36, 1);
         }
         .dsh-ag-obs-header {
           display: flex;
@@ -11335,9 +11614,18 @@ window.__ModuleLoader__.load({
           padding: 4px 10px;
           font-size: 12px;
           cursor: pointer;
-          transition: background 120ms ease;
+          transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 120ms ease;
         }
-        .dsh-ag-obs-btn:hover { background: rgba(148, 163, 184, 0.26); }
+        .dsh-ag-obs-btn:hover:not(:disabled) {
+          border-color: rgba(56, 189, 248, 0.65);
+          background: rgba(56, 189, 248, 0.18);
+          color: #ffffff;
+          box-shadow: 0 0 12px rgba(56, 189, 248, 0.26);
+          transform: translateY(-1px);
+        }
+        .dsh-ag-obs-btn:active:not(:disabled) {
+          transform: scale(0.95);
+        }
         .dsh-ag-obs-grid4 {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -11352,6 +11640,13 @@ window.__ModuleLoader__.load({
           border: 1px solid rgba(148, 163, 184, 0.16);
           border-radius: 12px;
           padding: 12px 14px;
+          transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, transform 180ms ease;
+        }
+        .dsh-ag-obs-card:hover {
+          border-color: rgba(56, 189, 248, 0.62);
+          background: rgba(46, 54, 74, 0.74);
+          box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.22), 0 6px 20px rgba(56, 189, 248, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          transform: translateY(-1px);
         }
         .dsh-ag-obs-card-label {
           font-size: 11.5px;
@@ -11375,6 +11670,13 @@ window.__ModuleLoader__.load({
           border-radius: 12px;
           padding: 13px 15px;
           margin-bottom: 12px;
+          transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, transform 180ms ease;
+        }
+        .dsh-ag-obs-section:hover {
+          border-color: rgba(56, 189, 248, 0.58);
+          background: rgba(44, 52, 72, 0.68);
+          box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2), 0 6px 22px rgba(56, 189, 248, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+          transform: translateY(-1px);
         }
         .dsh-ag-obs-section-hd {
           display: flex;
@@ -11511,13 +11813,51 @@ window.__ModuleLoader__.load({
       return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
     }
 
-    function AzureObserverModal({ open, onClose, data, loading, onRefresh, cfg }) {
+    function AzureObserverModal({ open, onClose, data, loading, onRefresh, cfg, anchorRef }) {
+      const modalRef = React.useRef(null);
+      const [pos, setPos] = React.useState(null);
+
+      const recalcPos = React.useCallback(() => {
+        const vw = window.innerWidth || 1280;
+        const vh = window.innerHeight || 800;
+        const modalW = Math.min(760, Math.max(320, vw - 24));
+        const anchorEl = anchorRef?.current;
+        if (anchorEl && typeof anchorEl.getBoundingClientRect === 'function') {
+          const rect = anchorEl.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const left = Math.max(12, Math.min(vw - modalW - 12, Math.round(centerX - modalW / 2)));
+          const bottom = Math.max(16, Math.round(vh - rect.top + 10));
+          const maxHeight = Math.max(220, Math.min(Math.round(vh * 0.78), Math.round(rect.top - 22)));
+          setPos({ left, bottom, width: modalW, maxHeight });
+          return;
+        }
+        setPos({
+          left: Math.max(12, Math.round((vw - modalW) / 2)),
+          bottom: 58,
+          width: modalW,
+          maxHeight: Math.round(vh * 0.76)
+        });
+      }, [anchorRef]);
+
       React.useEffect(() => {
         if (!open) return;
+        recalcPos();
         const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        const onPointerDown = (e) => {
+          const t = e.target;
+          if (modalRef.current && modalRef.current.contains(t)) return;
+          if (anchorRef?.current && anchorRef.current.contains(t)) return;
+          onClose();
+        };
         window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-      }, [open, onClose]);
+        window.addEventListener('pointerdown', onPointerDown, true);
+        window.addEventListener('resize', recalcPos);
+        return () => {
+          window.removeEventListener('keydown', onKey);
+          window.removeEventListener('pointerdown', onPointerDown, true);
+          window.removeEventListener('resize', recalcPos);
+        };
+      }, [open, onClose, recalcPos, anchorRef]);
 
       if (!open) return null;
 
@@ -11530,51 +11870,47 @@ window.__ModuleLoader__.load({
       const modalBlur = Math.max(0, Math.min(40, Math.round(Number(cfg?.observerModalBlurPx ?? 22))));
       const modalBg = hexToRgbaSafe(cfg?.observerModalBgColor || '#1a1d29', cfg?.observerModalOpacity ?? 0.86);
 
-      const modalNode = jsx('div', {
-        className: 'dsh-ag-obs-backdrop',
-        onClick: (e) => { if (e.target === e.currentTarget) onClose(); },
-        children: jsxs('div', {
-          className: 'dsh-ag-obs-modal',
-          style: {
-            background: modalBg,
-            backdropFilter: `blur(${modalBlur}px) saturate(140%)`,
-            WebkitBackdropFilter: `blur(${modalBlur}px) saturate(140%)`
-          },
-          children: [
-            jsxs('div', {
-              className: 'dsh-ag-obs-header',
-              children: [
-                jsxs('div', {
-                  className: 'dsh-ag-obs-title',
-                  children: [
-                    jsx('span', { children: '✦ 苍蓝上下文观察窗' }),
-                    jsx('span', {
-                      className: 'dsh-ag-obs-session-tag',
-                      title: d.title || d.sessionId || '',
-                      children: `${d.title || '当前会话'} (${d.turns || 0}轮 ${d.steps || 0}步 · ${pct}%)`
-                    })
-                  ]
-                }),
-                jsxs('div', {
-                  className: 'dsh-ag-obs-actions',
-                  children: [
-                    jsx('button', {
-                      type: 'button',
-                      className: 'dsh-ag-obs-btn',
-                      disabled: loading,
-                      onClick: onRefresh,
-                      children: loading ? '刷新中…' : '↻ 刷新'
-                    }),
-                    jsx('button', {
-                      type: 'button',
-                      className: 'dsh-ag-obs-btn',
-                      onClick: onClose,
-                      children: '关闭 ×'
-                    })
-                  ]
-                })
-              ]
-            }),
+      const modalNode = jsxs('div', {
+        ref: modalRef,
+        className: 'dsh-ag-obs-modal',
+        style: {
+          left: pos ? `${pos.left}px` : '50%',
+          bottom: pos ? `${pos.bottom}px` : '58px',
+          width: pos ? `${pos.width}px` : 'min(760px, calc(100vw - 24px))',
+          maxHeight: pos ? `${pos.maxHeight}px` : 'min(78vh, calc(100vh - 80px))',
+          background: modalBg,
+          backdropFilter: `blur(${modalBlur}px) saturate(140%)`,
+          WebkitBackdropFilter: `blur(${modalBlur}px) saturate(140%)`
+        },
+        children: [
+          jsxs('div', {
+            className: 'dsh-ag-obs-header',
+            children: [
+              jsxs('div', {
+                className: 'dsh-ag-obs-title',
+                children: [
+                  jsx('span', { children: '✦ 苍蓝上下文观察窗' }),
+                  jsx('span', {
+                    className: 'dsh-ag-obs-session-tag',
+                    title: d.title || d.sessionId || '',
+                    children: `${d.title || '当前会话'} (${d.turns || 0}轮 ${d.steps || 0}步 · ${pct}%)`
+                  })
+                ]
+              }),
+              jsxs('div', {
+                className: 'dsh-ag-obs-actions',
+                children: [
+                  jsx('button', {
+                    type: 'button',
+                    className: 'dsh-ag-obs-btn',
+                    disabled: loading,
+                    onClick: onRefresh,
+                    children: loading ? '刷新中…' : '↻ 刷新'
+                  })
+                ]
+              })
+            ]
+          }),
 
             // 顶部 4 指标卡
             jsxs('div', {
@@ -11613,6 +11949,88 @@ window.__ModuleLoader__.load({
                     jsx('div', { className: 'dsh-ag-obs-card-label', children: '实时生成速度' }),
                     jsx('div', { className: 'dsh-ag-obs-card-val', children: d.tokPerSec > 0 ? `${d.tokPerSec} tok/s` : '待生成' }),
                     jsx('div', { className: 'dsh-ag-obs-card-sub', children: d.model || d.provider || '—' })
+                  ]
+                })
+              ]
+            }),
+
+            // 官方展开统计完整整合（会话统计 + Token 用量明细）
+            jsxs('div', {
+              className: 'dsh-ag-obs-grid2',
+              children: [
+                jsxs('div', {
+                  className: 'dsh-ag-obs-section',
+                  style: { marginBottom: 0 },
+                  children: [
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-section-hd',
+                      children: [
+                        jsx('span', { children: '⏱ 会话统计' }),
+                        jsx('span', { style: { color: '#38bdf8', fontWeight: 600 }, children: `${d.turns || 0} 轮 ${d.steps || 0} 步` })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '模型用时' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: d.modelDurationSec > 0 ? `${d.modelDurationSec}秒` : '—' })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '首 token 平均 (TTFT)' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: d.avgTtftSec > 0 ? `${d.avgTtftSec}秒` : '—' })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '输出速度 (TPS)' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: d.tokPerSec > 0 ? `${d.tokPerSec} tok/s` : '—' })
+                      ]
+                    })
+                  ]
+                }),
+                jsxs('div', {
+                  className: 'dsh-ag-obs-section',
+                  style: { marginBottom: 0 },
+                  children: [
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-section-hd',
+                      children: [
+                        jsx('span', { children: '🪙 Token 用量' }),
+                        jsx('span', { style: { color: '#38bdf8', fontWeight: 600 }, children: `${Number(d.totalAllTokens || 0).toLocaleString()} tok` })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '缓存命中' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: `${d.cacheHitRate || 0}%` })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '未缓存输入' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: `${Number(d.uncachedInputTokens ?? Math.max(0, (d.totalInputTokens || 0) - (d.totalCacheReadTokens || 0))).toLocaleString()} tok` })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '缓存读取' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: `${Number(d.totalCacheReadTokens || 0).toLocaleString()} tok` })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '输出' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: `${Number(d.totalOutputTokens || 0).toLocaleString()} tok` })
+                      ]
+                    })
                   ]
                 })
               ]
@@ -11770,14 +12188,13 @@ window.__ModuleLoader__.load({
             jsxs('div', {
               className: 'dsh-ag-obs-footer',
               children: [
-                jsx('span', { children: '提示：按 Esc 或点击空白处关闭，点「刷新」立即更新余额与统计。' }),
+                jsx('span', { children: '提示：再次点击底部胶囊、点击卡片外区域或按 Esc 收回，点「刷新」立即更新余额与统计。' }),
                 jsx('span', {
                   children: `总输入 ${fmtTokCompact(d.totalInputTokens)} · 缓存 ${fmtTokCompact(d.totalCacheReadTokens)} · 输出 ${fmtTokCompact(d.totalOutputTokens)}`
                 })
               ]
             })
-          ]
-        })
+        ]
       });
 
       try {
@@ -11789,14 +12206,29 @@ window.__ModuleLoader__.load({
       return modalNode;
     }
 
+    function parseCompactNum(raw) {
+      const m = String(raw || '').trim().match(/^([\d.,]+)\s*([KkMm])?$/);
+      if (!m) return 0;
+      const num = parseFloat(m[1].replace(/,/g, ''));
+      if (!Number.isFinite(num)) return 0;
+      const u = (m[2] || '').toUpperCase();
+      if (u === 'M') return Math.round(num * 1000000);
+      if (u === 'K') return Math.round(num * 1000);
+      return Math.round(num);
+    }
+
     function AzureObserverCapsule({ sessionId }) {
       const { config: cfg } = useStore();
       const [data, setData] = React.useState(null);
+      const [nativeMirror, setNativeMirror] = React.useState(null);
       const [open, setOpen] = React.useState(false);
       const [loading, setLoading] = React.useState(false);
+      const pillRef = React.useRef(null);
 
       const enabled = cfg.observerEnabled !== false;
       const showBal = cfg.observerShowBalance !== false;
+      const useGlassPill = cfg.observerGlassPill !== false;
+      const hideNativeStats = cfg.observerHideNativeStats !== false;
 
       const fetchNow = React.useCallback((forceRefresh) => {
         if (!enabled) return;
@@ -11817,6 +12249,63 @@ window.__ModuleLoader__.load({
       }, [enabled, sessionId, showBal]);
 
       React.useEffect(() => {
+        const rootEl = document.documentElement;
+        if (enabled && hideNativeStats) {
+          rootEl.setAttribute('data-dsh-ag-hide-native-stats', '1');
+        } else {
+          rootEl.removeAttribute('data-dsh-ag-hide-native-stats');
+        }
+        return () => {
+          rootEl.removeAttribute('data-dsh-ag-hide-native-stats');
+        };
+      }, [enabled, hideNativeStats]);
+
+      React.useEffect(() => {
+        if (!enabled) return;
+        const scanNativeDock = () => {
+          const pillEl = pillRef.current;
+          const container = pillEl?.parentElement?.parentElement || pillEl?.parentElement;
+          if (!container) return;
+          const btns = container.querySelectorAll('button, [role="button"]');
+          const next = {};
+          for (const el of btns) {
+            if (el === pillEl || el.classList.contains('dsh-ag-obs-pill') || el.contains(pillEl)) continue;
+            const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!txt || txt.length > 80) continue;
+            const mTurn = txt.match(/(\d+)\s*轮\s*(\d+)\s*步/);
+            const mSpd = txt.match(/([\d.]+)\s*tok\/s/i);
+            const mTok = txt.match(/([\d.,]+\s*[KkMm]?)\s*tok\b/i);
+            const mCache = txt.match(/缓存命中\s*([\d.]+)\s*%/);
+            if (mTurn || (mSpd && /轮|步|turn|step/i.test(txt))) {
+              el.setAttribute('data-dsh-ag-native-stat', '1');
+              if (mTurn) {
+                next.turns = Number(mTurn[1]) || 0;
+                next.steps = Number(mTurn[2]) || 0;
+              }
+              if (mSpd) next.tokPerSec = Number(mSpd[1]) || 0;
+            } else if (mCache || (mTok && /缓存|cache/i.test(txt))) {
+              el.setAttribute('data-dsh-ag-native-stat', '1');
+              if (mTok) next.totalAllTokens = parseCompactNum(mTok[1]);
+              if (mCache) next.cacheHitRate = Number(mCache[1]) || 0;
+            }
+          }
+          if (Object.keys(next).length > 0) {
+            setNativeMirror((prev) => {
+              if (prev && prev.turns === next.turns && prev.steps === next.steps && prev.tokPerSec === next.tokPerSec && prev.totalAllTokens === next.totalAllTokens && prev.cacheHitRate === next.cacheHitRate) {
+                return prev;
+              }
+              return next;
+            });
+          }
+        };
+        scanNativeDock();
+        const obs = new MutationObserver(scanNativeDock);
+        const target = pillRef.current?.parentElement?.parentElement || document.body;
+        obs.observe(target, { childList: true, subtree: true, characterData: true });
+        return () => obs.disconnect();
+      }, [enabled, sessionId]);
+
+      React.useEffect(() => {
         if (!enabled) return;
         ensureObserverStyle();
         fetchNow(false);
@@ -11829,40 +12318,51 @@ window.__ModuleLoader__.load({
 
       if (!enabled) return null;
 
-      const d = data || {};
+      const raw = data || {};
+      const nm = nativeMirror || {};
+      const mergedTurns = Math.max(Number(raw.turns) || 0, Number(nm.turns) || 0);
+      const mergedSteps = Math.max(Number(raw.steps) || 0, Number(nm.steps) || 0);
+      const mergedTokPerSec = (Number(raw.tokPerSec) > 0 ? Number(raw.tokPerSec) : (Number(nm.tokPerSec) || 0));
+      const mergedTotalAll = Math.max(Number(raw.totalAllTokens) || 0, Number(nm.totalAllTokens) || 0);
+      const mergedCacheHit = (Number(raw.totalInputTokens) > 0 ? Number(raw.cacheHitRate) || 0 : (nm.cacheHitRate ?? (Number(raw.cacheHitRate) || 0)));
+      const d = {
+        ...raw,
+        turns: mergedTurns,
+        steps: mergedSteps,
+        tokPerSec: mergedTokPerSec,
+        totalAllTokens: mergedTotalAll,
+        cacheHitRate: mergedCacheHit
+      };
       const pct = Number(d.contextPct) || 0;
       const balShort = showBal && d.balance && d.balance.supported && d.balance.shortText ? d.balance.shortText : '';
 
       return jsxs(React.Fragment, {
         children: [
           jsxs('button', {
+            ref: pillRef,
             type: 'button',
             className: 'dsh-ag-obs-pill',
-            title: '点击打开苍蓝上下文观察窗（查看上下文构成、缓存命中、工具消耗与供应商余额）',
+            'data-glass': useGlassPill ? '1' : '0',
+            title: open ? '点击收回苍蓝上下文观察窗' : '点击展开苍蓝上下文观察窗（查看会话统计、Token 用量、上下文构成与供应商余额）',
             onClick: () => {
-              setOpen(true);
-              fetchNow(false);
+              setOpen((prev) => {
+                const next = !prev;
+                if (next) fetchNow(false);
+                return next;
+              });
             },
             children: [
-              jsx('span', { children: `⏱ ${d.turns || 0} 轮 ${d.steps || 0} 步` }),
+              jsx('span', { children: `⏱ ${d.turns} 轮 ${d.steps} 步` }),
               d.tokPerSec > 0 ? jsxs(React.Fragment, {
                 children: [
                   jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
                   jsx('span', { children: `${d.tokPerSec} tok/s` })
                 ]
               }) : null,
-              d.totalAllTokens > 0 ? jsxs(React.Fragment, {
-                children: [
-                  jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
-                  jsx('span', { children: `${fmtTokCompact(d.totalAllTokens)} tok` })
-                ]
-              }) : null,
-              d.totalInputTokens > 0 ? jsxs(React.Fragment, {
-                children: [
-                  jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
-                  jsx('span', { children: `缓存命中 ${d.cacheHitRate || 0}%` })
-                ]
-              }) : null,
+              jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
+              jsx('span', { children: `🪙 ${fmtTokCompact(d.totalAllTokens)} tok` }),
+              jsx('span', { className: 'dsh-ag-obs-sep', children: '·' }),
+              jsx('span', { children: `缓存命中 ${d.cacheHitRate}%` }),
               jsx(ContextRingSvg, { pct }),
               jsx('span', { className: pctToneClass(pct), children: `${Math.round(pct)}%` }),
               d.compactions > 0 ? jsx('span', { className: 'dsh-ag-obs-compact-badge', children: `压缩 ${d.compactions}次` }) : null,
@@ -11880,7 +12380,8 @@ window.__ModuleLoader__.load({
             data: d,
             loading,
             onRefresh: () => fetchNow(true),
-            cfg
+            cfg,
+            anchorRef: pillRef
           })
         ]
       });

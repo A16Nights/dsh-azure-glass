@@ -60,12 +60,12 @@
 
     <!-- Eyebrow pill -->
     <g transform="translate(176, 48)">
-      <rect width="424" height="26" rx="13" fill="rgba(30,41,59,0.80)" stroke="url(#accentGrad)" stroke-width="1" stroke-opacity="0.65"/>
-      <text x="16" y="17.2" font-size="11.5" font-weight="700" letter-spacing="1.2" fill="url(#accentGrad)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">苍蓝琉璃工坊 AZURE GLASS  ·  DEEPSEEK HARNESS (DSH) 插件</text>
+      <rect width="492" height="26" rx="13" fill="rgba(30,41,59,0.80)" stroke="url(#accentGrad)" stroke-width="1" stroke-opacity="0.65"/>
+      <text x="16" y="17.2" font-size="11.5" font-weight="700" letter-spacing="1.2" fill="url(#accentGrad)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">苍蓝琉璃工坊 AZURE GLASS ATELIER  ·  DEEPSEEK HARNESS (DSH) 插件</text>
     </g>
 
     <text x="176" y="132" font-size="44" font-weight="800" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">苍蓝琉璃工坊</text>
-    <text x="176" y="164" font-size="18" font-weight="600" fill="#94a3b8" letter-spacing="0.4" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">Azure Glass  ·  dsh-azure-glass</text>
+    <text x="176" y="164" font-size="18" font-weight="600" fill="#94a3b8" letter-spacing="0.4" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">Azure Glass Atelier  ·  dsh-azure-glass</text>
     <text x="176" y="196" font-size="15.5" font-weight="500" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">面向 DeepSeek Harness (DSH) 的一体化性能加速引擎与桌面级毛玻璃视觉定制工坊</text>
     
         <g transform="translate(176, 216)">

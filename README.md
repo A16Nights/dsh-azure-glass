@@ -3,12 +3,12 @@
 <p>🌐 &nbsp; <strong>简体中文</strong> &nbsp;·&nbsp; <a href="README.en.md">English</a></p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg?v=2">
-  <img src="assets/readme/hero-light.svg?v=2" alt="苍蓝琉璃工坊 · Azure Glass" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg?v=3">
+  <img src="assets/readme/hero-light.svg?v=3" alt="苍蓝琉璃工坊 · Azure Glass Atelier" width="100%">
 </picture>
 
 <p>
-  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.1.7_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.1.7 Beta"></a>
+  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.2.0_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.2.0 Beta"></a>
   <a href="https://github.com/A16Nights/dsh-azure-glass/stargazers"><img src="https://img.shields.io/github/stars/A16Nights/dsh-azure-glass?style=flat-square&label=Stars&color=38bdf8&labelColor=1e293b" alt="Stars"></a>
   <img src="https://img.shields.io/badge/DeepSeek_Harness-Desktop_%7C_Web-8b5cf6?style=flat-square&labelColor=1e293b" alt="DeepSeek Harness">
   <img src="https://img.shields.io/badge/Build_Deps-Zero-06b6d4?style=flat-square&labelColor=1e293b" alt="Zero Build Deps">
@@ -16,7 +16,7 @@
 </p>
 
 <p>
-  <strong>面向 DeepSeek Harness (DSH) 桌面端 / Web 端的一体化性能加速与桌面级视觉美化插件</strong>
+  <strong>面向 DeepSeek Harness (DSH) 的一站式全能工坊 — 性能引擎 × 琉璃美学 × 效率增强 × 实时观测</strong>
 </p>
 
 <p>
@@ -29,10 +29,10 @@
 </div>
 
 > [!WARNING]
-> **当前处于早期测试阶段（v0.1.7 Beta）**
+> **当前处于早期测试阶段（v0.2.0 Beta）**
 > 本插件仍在持续迭代与打磨中，部分功能、配置结构与界面细节可能会在后续版本中调整。如遇到问题或有改进建议，欢迎在 [Issues](https://github.com/A16Nights/dsh-azure-glass/issues) 反馈。
 
-**苍蓝琉璃工坊（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，集长会话性能加速、桌面级毛玻璃视觉定制、皮肤与插件更新管理、效率增强套件与上下文观察窗于一体。
+**苍蓝琉璃工坊 · Azure Glass Atelier（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，集长会话性能加速、桌面级毛玻璃视觉定制、皮肤与插件更新管理、效率增强套件与上下文观察窗于一体。
 
 <table>
 <tr>
