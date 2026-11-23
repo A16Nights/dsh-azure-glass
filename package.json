@@ -1,6 +1,6 @@
 {
   "name": "dsh-azure-glass",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "[测试版] 苍蓝琉璃工坊（Azure Glass）—— DeepSeek Harness (DSH) 一体化性能与视觉美化插件：长会话视口虚拟化、壁纸库与视差、分区毛玻璃、皮肤创意工坊、插件更新中心、苍蓝上下文观察窗与效率增强套件。",
   "type": "module",
   "main": "./index.js",
