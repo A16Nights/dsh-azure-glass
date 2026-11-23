@@ -15,7 +15,11 @@ const FALLBACK_PRICING = [
 ];
 
 const MODEL_WINDOW_HINTS = [
-  { re: /gemini|claude|glm-5|kimi-k|qwen3/i, win: 256000 },
+  { re: /deepseek[-_.\s]?v4/i, win: 1000000 },
+  { re: /gemini[-_.\s]?(2|3|4)/i, win: 1000000 },
+  { re: /gemini/i, win: 256000 },
+  { re: /claude/i, win: 200000 },
+  { re: /glm-5|kimi-k|qwen3/i, win: 256000 },
   { re: /deepseek/i, win: 131072 },
   { re: /gpt-4\.1|gpt-5|o3|o4/i, win: 200000 },
 ];
@@ -593,11 +597,20 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       }
     }
 
-    // Merge real-time tok/s & live provider override
+    // Merge real-time tok/s & live provider/model override
+    const mergedModel = sel.model || parsed.model;
+    const mergedWindow = (mergedModel && mergedModel !== parsed.model)
+      ? guessContextWindow(mergedModel)
+      : parsed.contextWindow;
+    const mergedPct = mergedWindow > 0
+      ? Math.min(100, Math.round(((parsed.currentContextTokens || 0) / mergedWindow) * 1000) / 10)
+      : parsed.contextPct;
     return {
       ...parsed,
       provider: sel.provider || parsed.provider,
-      model: sel.model || parsed.model,
+      model: mergedModel,
+      contextWindow: mergedWindow,
+      contextPct: mergedPct,
       tokPerSec: (live && live.lastTokPerSec > 0) ? live.lastTokPerSec : parsed.tokPerSec,
       spendCny: Math.max(parsed.spendCny || 0, live ? (live.spendCny || 0) : 0),
     };
