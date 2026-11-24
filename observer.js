@@ -95,19 +95,39 @@ function toNum(v) {
 
 function parseUsageFields(u) {
   if (!u || typeof u !== 'object') return null;
-  const input = toNum(u.inputTokens ?? u.input_tokens ?? u.prompt_tokens ?? u.promptTokens) || 0;
+  const rawInput = toNum(u.inputTokens ?? u.input_tokens ?? u.prompt_tokens ?? u.promptTokens) || 0;
   const cacheRead = toNum(u.cacheReadTokens ?? u.cache_read_tokens ?? u.cached_tokens ?? u.prompt_cache_hit_tokens ?? u.cacheReadInputTokens) || 0;
   const cacheWrite = toNum(u.cacheWriteTokens ?? u.cache_write_tokens ?? u.cacheCreationInputTokens) || 0;
   const output = toNum(u.outputTokens ?? u.output_tokens ?? u.completion_tokens ?? u.completionTokens) || 0;
-  if (input === 0 && cacheRead === 0 && output === 0) return null;
-  return { input, cacheRead, cacheWrite, output };
+  const totalRaw = toNum(u.totalTokens ?? u.total_tokens);
+  if (rawInput === 0 && cacheRead === 0 && cacheWrite === 0 && output === 0) return null;
+
+  // DSH (pi-ai) usage reports inputTokens as uncached input and totalTokens = inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens.
+  // Some OpenAI-compatible payloads report prompt_tokens as inclusive of cached tokens.
+  let inputIncludesCache = false;
+  if (cacheRead > 0) {
+    if (totalRaw !== null && totalRaw > 0) {
+      const diffExclusive = Math.abs(totalRaw - (rawInput + cacheRead + cacheWrite + output));
+      const diffInclusive = Math.abs(totalRaw - (rawInput + cacheWrite + output));
+      inputIncludesCache = diffInclusive < diffExclusive && rawInput >= cacheRead;
+    } else if (u.prompt_tokens !== undefined && u.inputTokens === undefined && u.input_tokens === undefined) {
+      inputIncludesCache = rawInput >= cacheRead;
+    }
+  }
+
+  const uncachedInput = inputIncludesCache ? Math.max(0, rawInput - cacheRead) : rawInput;
+  const totalInput = inputIncludesCache ? (rawInput + cacheWrite) : (rawInput + cacheRead + cacheWrite);
+  const total = totalRaw !== null && totalRaw > 0 ? totalRaw : (totalInput + output);
+  return { input: totalInput, uncachedInput, cacheRead, cacheWrite, output, total };
 }
 
-function calcDeepSeekCostCny(model, input, cacheRead, output) {
+function calcDeepSeekCostCny(model, uncachedInput, cacheRead, output) {
   const m = String(model || '').toLowerCase();
   const rule = FALLBACK_PRICING.find((p) => m.includes(p.prefix)) || FALLBACK_PRICING[2];
-  const uncachedInput = Math.max(0, input >= cacheRead ? input - cacheRead : input);
-  const usd = (uncachedInput * rule.input + cacheRead * rule.cacheRead + output * rule.output) / 1e6;
+  const uncached = Math.max(0, Number(uncachedInput) || 0);
+  const cached = Math.max(0, Number(cacheRead) || 0);
+  const out = Math.max(0, Number(output) || 0);
+  const usd = (uncached * rule.input + cached * rule.cacheRead + out * rule.output) / 1e6;
   return round2(usd * CNY_PER_USD);
 }
 
@@ -206,8 +226,11 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
               const cur = liveBySession.get(sid) || {
                 requests: 0,
                 inputTokens: 0,
+                uncachedInputTokens: 0,
                 cacheReadTokens: 0,
                 outputTokens: 0,
+                totalAllTokens: 0,
+                lastContextTokens: 0,
                 spendCny: 0,
                 lastTokPerSec: 0,
                 lastModel: '',
@@ -217,10 +240,13 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
               cur.requests += 1;
               if (usage) {
                 cur.inputTokens += usage.input;
+                cur.uncachedInputTokens += usage.uncachedInput;
                 cur.cacheReadTokens += usage.cacheRead;
                 cur.outputTokens += usage.output;
+                cur.totalAllTokens += usage.total;
+                cur.lastContextTokens = usage.total;
                 if (isDeepSeekModel(model) || isDeepSeekProvider(provider)) {
-                  cur.spendCny = round2(cur.spendCny + calcDeepSeekCostCny(model, usage.input, usage.cacheRead, usage.output));
+                  cur.spendCny = round2(cur.spendCny + calcDeepSeekCostCny(model, usage.uncachedInput, usage.cacheRead, usage.output));
                 }
               }
               if (tokPerSec > 0 && tokPerSec < 5000) cur.lastTokPerSec = tokPerSec;
@@ -285,7 +311,7 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
     const candidates = cleanId.startsWith('session-')
       ? [cleanId, cleanId.slice('session-'.length)]
       : [`session-${cleanId}`, cleanId];
-    const fileNames = ['session.v4.jsonl.zstd', 'session.jsonl.zstd', 'session.jsonl'];
+    const fileNames = ['session.v4.jsonl.zstd', 'session.v3.jsonl.zstd', 'session.jsonl.zstd', 'session.jsonl'];
 
     let wsDirs = [];
     try {
@@ -311,13 +337,63 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
     return null;
   }
 
+  const ZSTD_MAGIC = 0xfd2fb528;
+
+  function decompressZstdMultiFrame(buf) {
+    if (typeof zlib.zstdDecompressSync !== 'function') {
+      throw new Error('Node zstdDecompressSync unavailable');
+    }
+    const marks = [];
+    for (let pos = 0; pos + 4 <= buf.length; pos += 1) {
+      if (buf.readUInt32LE(pos) === ZSTD_MAGIC) marks.push(pos);
+    }
+    if (marks.length <= 1) {
+      return zlib.zstdDecompressSync(buf).toString('utf8');
+    }
+    const tryDecode = (chunk) => {
+      try {
+        const out = zlib.zstdDecompressSync(chunk);
+        return out && out.length > 0 ? out : null;
+      } catch {
+        return null;
+      }
+    };
+    const pieces = [];
+    let pending = null;
+    for (let i = 0; i < marks.length; i += 1) {
+      const start = marks[i];
+      const end = i + 1 < marks.length ? marks[i + 1] : buf.length;
+      const frame = buf.subarray(start, end);
+      if (pending !== null) {
+        const merged = tryDecode(Buffer.concat([pending, frame]));
+        if (merged) {
+          pieces.push(merged);
+          pending = null;
+          continue;
+        }
+        pending = null;
+      }
+      const alone = tryDecode(frame);
+      if (alone) pieces.push(alone);
+      else pending = frame;
+    }
+    if (pieces.length === 0) {
+      return zlib.zstdDecompressSync(buf).toString('utf8');
+    }
+    const parts = [];
+    for (let i = 0; i < pieces.length; i += 1) {
+      const str = pieces[i].toString('utf8');
+      if (!str) continue;
+      parts.push(str);
+      if (!str.endsWith('\n')) parts.push('\n');
+    }
+    return parts.join('');
+  }
+
   function readSessionJsonl(filePath) {
     const buf = fs.readFileSync(filePath);
     if (filePath.endsWith('.zstd')) {
-      if (typeof zlib.zstdDecompressSync !== 'function') {
-        throw new Error('Node zstdDecompressSync unavailable');
-      }
-      return zlib.zstdDecompressSync(buf).toString('utf8');
+      return decompressZstdMultiFrame(buf);
     }
     return buf.toString('utf8');
   }
@@ -329,6 +405,13 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
     const fp = sid ? locateSessionFile(sid) : null;
 
     if (!fp) {
+      const liveIn = live ? live.inputTokens : 0;
+      const liveCache = live ? live.cacheReadTokens : 0;
+      const liveUncached = live ? live.uncachedInputTokens : 0;
+      const liveOut = live ? live.outputTokens : 0;
+      const liveAll = live ? (live.totalAllTokens || (liveIn + liveOut)) : 0;
+      const liveCtx = live ? live.lastContextTokens : 0;
+      const win = guessContextWindow(sel.model);
       return {
         ok: true,
         found: false,
@@ -336,18 +419,21 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
         title: '',
         provider: sel.provider,
         model: sel.model,
-        contextWindow: guessContextWindow(sel.model),
+        contextWindow: win,
         turns: 0,
-        steps: 0,
+        steps: live ? live.requests : 0,
         compactions: 0,
         tokPerSec: live ? live.lastTokPerSec : 0,
-        currentContextTokens: 0,
-        contextPct: 0,
-        totalInputTokens: live ? live.inputTokens : 0,
-        totalCacheReadTokens: live ? live.cacheReadTokens : 0,
-        totalOutputTokens: live ? live.outputTokens : 0,
-        totalAllTokens: live ? (live.inputTokens + live.outputTokens) : 0,
-        cacheHitRate: 0,
+        modelDurationSec: 0,
+        avgTtftSec: 0,
+        currentContextTokens: liveCtx,
+        contextPct: win > 0 && liveCtx > 0 ? Math.min(100, Math.round((liveCtx / win) * 1000) / 10) : 0,
+        totalInputTokens: liveIn,
+        uncachedInputTokens: liveUncached,
+        totalCacheReadTokens: liveCache,
+        totalOutputTokens: liveOut,
+        totalAllTokens: liveAll,
+        cacheHitRate: liveIn > 0 ? Math.min(100, Math.round((liveCache / liveIn) * 1000) / 10) : 0,
         spendCny: live ? live.spendCny : 0,
         breakdown: [],
         toolCategories: [],
@@ -377,8 +463,10 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       const seenBiliDecompressIds = new Set();
 
       let totalInput = 0;
+      let totalUncachedInput = 0;
       let totalCacheRead = 0;
       let totalOutput = 0;
+      let totalAll = 0;
       let lastContextTokens = 0;
       let spendCny = 0;
 
@@ -395,8 +483,12 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       const toolCatStats = new Map();
       const stepItems = [];
       let lastStepStartTs = 0;
+      let lastRequestStartTs = 0;
       let lastDerivedTokPerSec = 0;
+      let totalGenOutput = 0;
+      let totalGenMs = 0;
       let totalModelDurationMs = 0;
+      let totalToolDurationMs = 0;
       let ttftSumMs = 0;
       let ttftCount = 0;
 
@@ -417,6 +509,7 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
           if (d.provider) provider = String(d.provider);
           if (d.model) model = String(d.model);
           if (Number(d.contextWindow) > 0) contextWindow = Number(d.contextWindow);
+          if (Number(o.time) > 0) lastRequestStartTs = Number(o.time);
         } else if (type === 'request/header') {
           const cfg = d.header?.config;
           if (cfg?.provider) provider = String(cfg.provider);
@@ -429,6 +522,7 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
         } else if (type === 'step/start') {
           steps++;
           lastStepStartTs = Number(o.time) || 0;
+          lastRequestStartTs = 0;
         } else if (type === 'system/message') {
           const txt = stringifyContent(d.message?.content ?? d.content);
           systemTok = Math.max(systemTok, estimateTokensFromText(txt));
@@ -474,30 +568,65 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
           reasoningTok += msgReasonLen;
 
           const u = parseUsageFields(msg.usage || d.usage || o.usage);
+          const streamEvents = Array.isArray(d.stream) ? d.stream : (Array.isArray(msg.stream) ? msg.stream : []);
+          let firstStreamTs = 0;
+          let lastStreamTs = 0;
+          for (let si = 0; si < streamEvents.length; si++) {
+            const ev = streamEvents[si];
+            const t = Number(ev?.time || ev?.time0) || 0;
+            if (t > 0) {
+              if (!firstStreamTs || t < firstStreamTs) firstStreamTs = t;
+              let endT = t;
+              if (Array.isArray(ev.dt)) {
+                for (let di = 0; di < ev.dt.length; di++) {
+                  endT += (Number(ev.dt[di]) || 0);
+                }
+              }
+              if (endT > lastStreamTs) lastStreamTs = endT;
+            }
+          }
+
           if (u) {
-            const ctxIn = u.input >= u.cacheRead ? u.input : (u.input + u.cacheRead);
-            totalInput += ctxIn;
+            totalInput += u.input;
+            totalUncachedInput += u.uncachedInput;
             totalCacheRead += u.cacheRead;
             totalOutput += u.output;
-            lastContextTokens = ctxIn + u.output;
+            totalAll += u.total;
+            lastContextTokens = u.total || (u.input + u.output);
             const mName = msg.source?.model || model;
             const pName = msg.source?.provider || provider;
             if (isDeepSeekModel(mName) || isDeepSeekProvider(pName)) {
-              spendCny = round2(spendCny + calcDeepSeekCostCny(mName, ctxIn, u.cacheRead, u.output));
+              spendCny = round2(spendCny + calcDeepSeekCostCny(mName, u.uncachedInput, u.cacheRead, u.output));
             }
-            const explicitDur = toNum(msg.durationMs ?? d.durationMs ?? o.durationMs ?? msg.metrics?.durationMs ?? d.metrics?.durationMs);
+            const startTs = lastRequestStartTs || lastStepStartTs;
+            const endTs = lastStreamTs || Number(o.time) || 0;
+
             const explicitTtft = toNum(msg.ttftMs ?? d.ttftMs ?? o.ttftMs ?? msg.firstTokenMs ?? d.firstTokenMs ?? msg.metrics?.ttftMs ?? d.metrics?.ttftMs);
-            if (explicitTtft !== null && explicitTtft > 0 && explicitTtft < 600000) {
-              ttftSumMs += explicitTtft;
+            let ttftMs = (explicitTtft !== null && explicitTtft > 0 && explicitTtft < 600000) ? explicitTtft : 0;
+            if (ttftMs <= 0 && startTs > 0 && firstStreamTs >= startTs) {
+              const diffTtft = firstStreamTs - startTs;
+              if (diffTtft > 0 && diffTtft < 600000) ttftMs = diffTtft;
+            }
+            if (ttftMs > 0) {
+              ttftSumMs += ttftMs;
               ttftCount++;
             }
+
+            const explicitDur = toNum(msg.durationMs ?? d.durationMs ?? o.durationMs ?? msg.metrics?.durationMs ?? d.metrics?.durationMs);
             let stepDurMs = explicitDur !== null && explicitDur > 0 && explicitDur < 3600000 ? explicitDur : 0;
-            if (stepDurMs <= 0 && lastStepStartTs > 0 && Number(o.time) > lastStepStartTs) {
-              const diff = Number(o.time) - lastStepStartTs;
+            if (stepDurMs <= 0 && startTs > 0 && endTs > startTs) {
+              const diff = endTs - startTs;
               if (diff > 0 && diff < 3600000) stepDurMs = diff;
             }
             if (stepDurMs > 0) totalModelDurationMs += stepDurMs;
-            if (stepDurMs > 0 && u.output > 5) {
+
+            if (u.output > 0 && firstStreamTs > 0 && lastStreamTs > firstStreamTs) {
+              const genMs = lastStreamTs - firstStreamTs;
+              totalGenOutput += u.output;
+              totalGenMs += genMs;
+              const spd = Math.round((u.output / Math.max(0.15, genMs / 1000)) * 10) / 10;
+              if (spd > 0 && spd < 5000) lastDerivedTokPerSec = spd;
+            } else if (stepDurMs > 0 && u.output > 5) {
               const sec = Math.max(0.2, stepDurMs / 1000);
               const spd = Math.round((u.output / sec) * 10) / 10;
               if (spd > 0 && spd < 5000) lastDerivedTokPerSec = spd;
@@ -507,7 +636,7 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
           const cid = d.callId || d.id || '';
           const tname = d.name || 'tool';
           const args = typeof d.arguments === 'string' ? d.arguments : JSON.stringify(d.arguments || '');
-          if (cid) toolCallsById.set(cid, { name: tname, args });
+          if (cid) toolCallsById.set(cid, { name: tname, args, startTs: Number(o.time) || 0 });
           const dedupId = String(cid || `tc-${i}-${tname}`);
           if (/^(?:acp_)?compress$/i.test(tname) && !seenBiliCompressIds.has(dedupId)) {
             seenBiliCompressIds.add(dedupId);
@@ -518,7 +647,12 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
           }
         } else if (type === 'tool/result') {
           const cid = d.message?.toolCallId || d.message?.source?.callId || d.callId || '';
-          const callInfo = toolCallsById.get(cid) || { name: d.name || 'tool', args: '' };
+          const callInfo = toolCallsById.get(cid) || { name: d.name || 'tool', args: '', startTs: 0 };
+          const resTs = Number(o.time) || 0;
+          if (callInfo.startTs > 0 && resTs > callInfo.startTs) {
+            const tDur = resTs - callInfo.startTs;
+            if (tDur > 0 && tDur < 3600000) totalToolDurationMs += tDur;
+          }
           const txt = stringifyContent(d.message?.content ?? d.content);
           const tok = estimateTokensFromText(txt) + estimateTokensFromText(callInfo.args);
           toolResultTok += tok;
@@ -578,6 +712,10 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
 
       const compactions = nativeCompactions + biliCompactions;
 
+      const avgTokPerSec = totalGenMs > 0 && totalGenOutput > 0
+        ? Math.round((totalGenOutput / Math.max(0.15, totalGenMs / 1000)) * 10) / 10
+        : lastDerivedTokPerSec;
+
       parsed = {
         ok: true,
         found: true,
@@ -592,16 +730,17 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
         nativeCompactions,
         biliCompactions,
         biliDecompactions,
-        tokPerSec: lastDerivedTokPerSec,
+        tokPerSec: avgTokPerSec,
         modelDurationSec: totalModelDurationMs > 0 ? Math.round((totalModelDurationMs / 1000) * 10) / 10 : 0,
+        toolDurationSec: totalToolDurationMs > 0 ? Math.round((totalToolDurationMs / 1000) * 10) / 10 : 0,
         avgTtftSec: ttftCount > 0 ? Math.round(((ttftSumMs / ttftCount) / 1000) * 10) / 10 : 0,
         currentContextTokens: effectiveCtx,
         contextPct: finalWindow > 0 ? Math.min(100, Math.round((effectiveCtx / finalWindow) * 1000) / 10) : 0,
         totalInputTokens: totalInput,
-        uncachedInputTokens: Math.max(0, totalInput - totalCacheRead),
+        uncachedInputTokens: totalUncachedInput,
         totalCacheReadTokens: totalCacheRead,
         totalOutputTokens: totalOutput,
-        totalAllTokens: totalInput + totalOutput,
+        totalAllTokens: totalAll > 0 ? totalAll : (totalInput + totalOutput),
         cacheHitRate,
         spendCny,
         breakdown,
@@ -615,21 +754,40 @@ export function registerObserver(ctx, { withRequestGuard, setCors, sendJson }) {
       }
     }
 
-    // Merge real-time tok/s & live provider/model override
+    // Merge real-time tok/s, live usage (when ahead of flushed disk file) & live provider/model override
     const mergedModel = sel.model || parsed.model;
     const mergedWindow = (mergedModel && mergedModel !== parsed.model)
       ? guessContextWindow(mergedModel)
       : parsed.contextWindow;
+    const liveAhead = live && (live.totalAllTokens > (parsed.totalAllTokens || 0));
+    const mergedTotalInput = liveAhead ? live.inputTokens : (parsed.totalInputTokens || 0);
+    const mergedUncachedInput = liveAhead ? live.uncachedInputTokens : (parsed.uncachedInputTokens || 0);
+    const mergedCacheRead = liveAhead ? live.cacheReadTokens : (parsed.totalCacheReadTokens || 0);
+    const mergedOutput = liveAhead ? live.outputTokens : (parsed.totalOutputTokens || 0);
+    const mergedTotalAll = liveAhead ? live.totalAllTokens : (parsed.totalAllTokens || 0);
+    const mergedCacheHit = mergedTotalInput > 0
+      ? Math.min(100, Math.round((mergedCacheRead / mergedTotalInput) * 1000) / 10)
+      : (parsed.cacheHitRate || 0);
+    const mergedCtxTokens = (liveAhead && live.lastContextTokens > 0)
+      ? live.lastContextTokens
+      : (parsed.currentContextTokens || 0);
     const mergedPct = mergedWindow > 0
-      ? Math.min(100, Math.round(((parsed.currentContextTokens || 0) / mergedWindow) * 1000) / 10)
+      ? Math.min(100, Math.round((mergedCtxTokens / mergedWindow) * 1000) / 10)
       : parsed.contextPct;
     return {
       ...parsed,
       provider: sel.provider || parsed.provider,
       model: mergedModel,
       contextWindow: mergedWindow,
+      currentContextTokens: mergedCtxTokens,
       contextPct: mergedPct,
-      tokPerSec: (live && live.lastTokPerSec > 0) ? live.lastTokPerSec : parsed.tokPerSec,
+      totalInputTokens: mergedTotalInput,
+      uncachedInputTokens: mergedUncachedInput,
+      totalCacheReadTokens: mergedCacheRead,
+      totalOutputTokens: mergedOutput,
+      totalAllTokens: mergedTotalAll,
+      cacheHitRate: mergedCacheHit,
+      tokPerSec: (parsed.tokPerSec > 0) ? parsed.tokPerSec : ((live && live.lastTokPerSec > 0) ? live.lastTokPerSec : 0),
       spendCny: Math.max(parsed.spendCny || 0, live ? (live.spendCny || 0) : 0),
     };
   }

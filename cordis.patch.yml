@@ -1,3 +1,5 @@
 - insert:
+    - id: dsh-azure-glass-compaction-bridge
+      name: dsh-azure-glass/compaction-bridge
     - id: dsh-azure-glass
       name: dsh-azure-glass

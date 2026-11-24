@@ -11934,6 +11934,15 @@ window.__ModuleLoader__.load({
       const heaviest = Array.isArray(d.heaviestSteps) ? d.heaviestSteps : [];
       const modalBlur = Math.max(0, Math.min(40, Math.round(Number(cfg?.observerModalBlurPx ?? 22))));
       const modalBg = hexToRgbaSafe(cfg?.observerModalBgColor || '#1a1d29', cfg?.observerModalOpacity ?? 0.86);
+      const fmtDurationZh = (sec) => {
+        const s = Number(sec) || 0;
+        if (s <= 0) return '—';
+        if (s < 60) return `${Math.round(s * 10) / 10}秒`;
+        const total = Math.round(s);
+        const mins = Math.floor(total / 60);
+        const rem = total % 60;
+        return rem > 0 ? `${mins}分${rem}秒` : `${mins}分`;
+      };
 
       const modalNode = jsxs('div', {
         ref: modalRef,
@@ -12038,14 +12047,21 @@ window.__ModuleLoader__.load({
                       className: 'dsh-ag-obs-kv',
                       children: [
                         jsx('span', { children: '模型用时' }),
-                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: d.modelDurationSec > 0 ? `${d.modelDurationSec}秒` : '—' })
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: fmtDurationZh(d.modelDurationSec) })
+                      ]
+                    }),
+                    jsxs('div', {
+                      className: 'dsh-ag-obs-kv',
+                      children: [
+                        jsx('span', { children: '工具调用用时' }),
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: fmtDurationZh(d.toolDurationSec) })
                       ]
                     }),
                     jsxs('div', {
                       className: 'dsh-ag-obs-kv',
                       children: [
                         jsx('span', { children: '首 token 平均 (TTFT)' }),
-                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: d.avgTtftSec > 0 ? `${d.avgTtftSec}秒` : '—' })
+                        jsx('span', { style: { color: '#c084fc', fontWeight: 600 }, children: fmtDurationZh(d.avgTtftSec) })
                       ]
                     }),
                     jsxs('div', {
@@ -12282,23 +12298,73 @@ window.__ModuleLoader__.load({
       return Math.round(num);
     }
 
-    function AzureObserverCapsule({ sessionId }) {
+    function resolveObserverSessionId(propSid, pillEl) {
+      const clean = (v) => {
+        const s = typeof v === 'string' ? v.trim() : '';
+        return s && !/[\\/]|\.\./.test(s) ? s : '';
+      };
+      const fromProp = clean(propSid);
+      if (fromProp) return fromProp;
+      try {
+        const href = String(window.location?.pathname || '') + ' ' + String(window.location?.hash || '') + ' ' + String(window.location?.search || '');
+        const mSess = href.match(/\b(session-[0-9a-f-]{8,})\b/i);
+        if (mSess && mSess[1]) return mSess[1];
+      } catch {}
+      try {
+        if (pillEl && typeof pillEl.closest === 'function') {
+          const host = pillEl.closest('[data-session-id], [data-chat-session-id], [data-session]');
+          const domId = clean(host?.getAttribute?.('data-session-id') || host?.getAttribute?.('data-chat-session-id') || host?.getAttribute?.('data-session'));
+          if (domId) return domId;
+        }
+      } catch {}
+      const fromSvc = clean(resolveActiveSessionId());
+      if (fromSvc) return fromSvc;
+      return '';
+    }
+
+    function AzureObserverCapsule({ sessionId: propSessionId }) {
       const { config: cfg } = useStore();
+      const pillRef = React.useRef(null);
+      const [fallbackSid, setFallbackSid] = React.useState(() => resolveObserverSessionId(propSessionId, null));
+      const effectiveSessionId = (propSessionId && String(propSessionId).trim()) || fallbackSid || '';
       const [data, setData] = React.useState(null);
       const [nativeMirror, setNativeMirror] = React.useState(null);
       const [open, setOpen] = React.useState(false);
       const [loading, setLoading] = React.useState(false);
-      const pillRef = React.useRef(null);
 
       const enabled = cfg.observerEnabled !== false;
       const showBal = cfg.observerShowBalance !== false;
       const useGlassPill = cfg.observerGlassPill !== false;
       const hideNativeStats = cfg.observerHideNativeStats !== false;
 
+      // Keep active sessionId synced even when composer dock slot omits props.sessionId
+      React.useEffect(() => {
+        if (!enabled) return;
+        const syncSid = () => {
+          const next = resolveObserverSessionId(propSessionId, pillRef.current);
+          if (next) {
+            setFallbackSid((prev) => (prev === next ? prev : next));
+          }
+        };
+        syncSid();
+        const t = setInterval(() => {
+          if (document.visibilityState === 'hidden') return;
+          syncSid();
+        }, 1200);
+        return () => clearInterval(t);
+      }, [enabled, propSessionId]);
+
+      // Reset stale mirror/data when switching sessions
+      React.useEffect(() => {
+        setNativeMirror(null);
+        setData(null);
+      }, [effectiveSessionId]);
+
       const fetchNow = React.useCallback((forceRefresh) => {
         if (!enabled) return;
+        const sidNow = effectiveSessionId || resolveObserverSessionId(propSessionId, pillRef.current);
         const qs = new URLSearchParams();
-        if (sessionId) qs.set('sessionId', String(sessionId));
+        if (sidNow) qs.set('sessionId', String(sidNow));
         qs.set('balance', showBal ? '1' : '0');
         if (forceRefresh) qs.set('refresh', '1');
         if (forceRefresh) setLoading(true);
@@ -12311,7 +12377,7 @@ window.__ModuleLoader__.load({
           .finally(() => {
             if (forceRefresh) setLoading(false);
           });
-      }, [enabled, sessionId, showBal]);
+      }, [enabled, effectiveSessionId, propSessionId, showBal]);
 
       React.useEffect(() => {
         const rootEl = document.documentElement;
@@ -12327,20 +12393,36 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => {
         if (!enabled) return;
+        const findDockRoot = (pillEl) => {
+          if (!pillEl) return null;
+          let cur = pillEl.parentElement;
+          for (let i = 0; i < 6 && cur && cur !== document.body; i++) {
+            if (cur.querySelector && cur.querySelector('textarea, [contenteditable="true"]')) {
+              return cur;
+            }
+            cur = cur.parentElement;
+          }
+          return pillEl.closest('[data-composer-seat], [data-slot="conversation.composer.dock"], footer')
+            || pillEl.parentElement?.parentElement?.parentElement
+            || pillEl.parentElement?.parentElement
+            || pillEl.parentElement;
+        };
         const scanNativeDock = () => {
           const pillEl = pillRef.current;
-          const container = pillEl?.parentElement?.parentElement || pillEl?.parentElement;
+          const container = findDockRoot(pillEl);
           if (!container) return;
           const btns = container.querySelectorAll('button, [role="button"]');
           const next = {};
           for (const el of btns) {
             if (el === pillEl || el.classList.contains('dsh-ag-obs-pill') || el.contains(pillEl)) continue;
+            if (el.closest('.dsh-ag-obs-modal, .dsh-sg-panel, .dsh-sg-modal')) continue;
             const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
-            if (!txt || txt.length > 80) continue;
+            if (!txt || txt.length > 100) continue;
             const mTurn = txt.match(/(\d+)\s*轮\s*(\d+)\s*步/);
             const mSpd = txt.match(/([\d.]+)\s*tok\/s/i);
             const mTok = txt.match(/([\d.,]+\s*[KkMm]?)\s*tok\b/i);
-            const mCache = txt.match(/缓存命中\s*([\d.]+)\s*%/);
+            const mCache = txt.match(/(?:缓存)?命中[率]?\s*[:：]?\s*([\d.]+)\s*%/);
+            const isContextRingPct = /^\d+(?:\.\d+)?%$/.test(txt) && Boolean(el.querySelector('svg'));
             if (mTurn || (mSpd && /轮|步|turn|step/i.test(txt))) {
               el.setAttribute('data-dsh-ag-native-stat', '1');
               if (mTurn) {
@@ -12348,10 +12430,12 @@ window.__ModuleLoader__.load({
                 next.steps = Number(mTurn[2]) || 0;
               }
               if (mSpd) next.tokPerSec = Number(mSpd[1]) || 0;
-            } else if (mCache || (mTok && /缓存|cache/i.test(txt))) {
+            } else if (mCache || (mTok && /缓存|命中|cache/i.test(txt))) {
               el.setAttribute('data-dsh-ag-native-stat', '1');
               if (mTok) next.totalAllTokens = parseCompactNum(mTok[1]);
               if (mCache) next.cacheHitRate = Number(mCache[1]) || 0;
+            } else if (isContextRingPct) {
+              el.setAttribute('data-dsh-ag-native-stat', '1');
             }
           }
           if (Object.keys(next).length > 0) {
@@ -12365,10 +12449,10 @@ window.__ModuleLoader__.load({
         };
         scanNativeDock();
         const obs = new MutationObserver(scanNativeDock);
-        const target = pillRef.current?.parentElement?.parentElement || document.body;
+        const target = findDockRoot(pillRef.current) || document.body;
         obs.observe(target, { childList: true, subtree: true, characterData: true });
         return () => obs.disconnect();
-      }, [enabled, sessionId]);
+      }, [enabled, effectiveSessionId]);
 
       React.useEffect(() => {
         if (!enabled) return;
@@ -12385,11 +12469,12 @@ window.__ModuleLoader__.load({
 
       const raw = data || {};
       const nm = nativeMirror || {};
-      const mergedTurns = Math.max(Number(raw.turns) || 0, Number(nm.turns) || 0);
-      const mergedSteps = Math.max(Number(raw.steps) || 0, Number(nm.steps) || 0);
-      const mergedTokPerSec = (Number(raw.tokPerSec) > 0 ? Number(raw.tokPerSec) : (Number(nm.tokPerSec) || 0));
-      const mergedTotalAll = Math.max(Number(raw.totalAllTokens) || 0, Number(nm.totalAllTokens) || 0);
-      const mergedCacheHit = (Number(raw.totalInputTokens) > 0 ? Number(raw.cacheHitRate) || 0 : (nm.cacheHitRate ?? (Number(raw.cacheHitRate) || 0)));
+      const hasBackend = raw.found === true || (Number(raw.totalAllTokens) > 0);
+      const mergedTurns = hasBackend ? (Number(raw.turns) || Number(nm.turns) || 0) : Math.max(Number(raw.turns) || 0, Number(nm.turns) || 0);
+      const mergedSteps = hasBackend ? (Number(raw.steps) || Number(nm.steps) || 0) : Math.max(Number(raw.steps) || 0, Number(nm.steps) || 0);
+      const mergedTokPerSec = Number(raw.tokPerSec) > 0 ? Number(raw.tokPerSec) : (Number(nm.tokPerSec) || 0);
+      const mergedTotalAll = hasBackend ? (Number(raw.totalAllTokens) || 0) : Math.max(Number(raw.totalAllTokens) || 0, Number(nm.totalAllTokens) || 0);
+      const mergedCacheHit = hasBackend ? (Number(raw.cacheHitRate) || 0) : (nm.cacheHitRate ?? (Number(raw.cacheHitRate) || 0));
       const d = {
         ...raw,
         turns: mergedTurns,
@@ -12555,8 +12640,20 @@ window.__ModuleLoader__.load({
 
       ctx.slots.inject('conversation.composer.dock', () =>
         ctx.slots.register(
-          { name: 'conversation.composer.dock', id: 'dsh-azure-glass-observer', order: 12, label: '苍蓝观察窗' },
-          (props) => jsx(AzureObserverCapsule, { sessionId: props && props.sessionId })
+          {
+            name: 'conversation.composer.dock',
+            id: 'dsh-azure-glass-observer',
+            order: 12,
+            label: '苍蓝观察窗',
+            inject: (arg) => ({
+              injectedSessionId: typeof arg === 'string'
+                ? arg
+                : (arg && (arg.sessionId || arg.id || arg.session?.id || arg.session?.sessionId)) || ''
+            })
+          },
+          (props) => jsx(AzureObserverCapsule, {
+            sessionId: props && (props.sessionId || props.injectedSessionId || props.id || props.session?.id || props.session?.sessionId)
+          })
         )
       );
 

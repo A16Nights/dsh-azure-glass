@@ -228,7 +228,10 @@ const DEFAULT_CONFIG = Object.freeze({
   observerHideNativeStats: true,
   observerModalOpacity: 0.86,
   observerModalBlurPx: 22,
-  observerModalBgColor: '#1a1d29'
+  observerModalBgColor: '#1a1d29',
+
+  // 13. 第三方插件生态兼容桥接（如 billion-context × MultiGameAssistant）
+  biliCompatBridgeEnabled: true
 });
 
 function resolveStoreDir() {
@@ -426,7 +429,8 @@ function normalizeConfig(raw) {
     observerHideNativeStats: src.observerHideNativeStats !== undefined ? Boolean(src.observerHideNativeStats) : DEFAULT_CONFIG.observerHideNativeStats,
     observerModalOpacity: clamp(src.observerModalOpacity, 0.15, 0.98, DEFAULT_CONFIG.observerModalOpacity),
     observerModalBlurPx: Math.round(clamp(src.observerModalBlurPx, 0, 40, DEFAULT_CONFIG.observerModalBlurPx)),
-    observerModalBgColor: cleanColor(src.observerModalBgColor) || DEFAULT_CONFIG.observerModalBgColor
+    observerModalBgColor: cleanColor(src.observerModalBgColor) || DEFAULT_CONFIG.observerModalBgColor,
+    biliCompatBridgeEnabled: src.biliCompatBridgeEnabled !== undefined ? Boolean(src.biliCompatBridgeEnabled) : DEFAULT_CONFIG.biliCompatBridgeEnabled
   };
 }
 
