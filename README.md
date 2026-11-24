@@ -8,7 +8,7 @@
 </picture>
 
 <p>
-  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.2.1_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.2.1 Beta"></a>
+  <a href="https://github.com/A16Nights/dsh-azure-glass/releases"><img src="https://img.shields.io/badge/Version-v0.2.2_Beta-f59e0b?style=flat-square&labelColor=1e293b" alt="Version v0.2.2 Beta"></a>
   <a href="https://github.com/A16Nights/dsh-azure-glass/stargazers"><img src="https://img.shields.io/github/stars/A16Nights/dsh-azure-glass?style=flat-square&label=Stars&color=38bdf8&labelColor=1e293b" alt="Stars"></a>
   <img src="https://img.shields.io/badge/DeepSeek_Harness-Desktop_%7C_Web-8b5cf6?style=flat-square&labelColor=1e293b" alt="DeepSeek Harness">
   <img src="https://img.shields.io/badge/Build_Deps-Zero-06b6d4?style=flat-square&labelColor=1e293b" alt="Zero Build Deps">
@@ -29,7 +29,7 @@
 </div>
 
 > [!WARNING]
-> **当前处于早期测试阶段（v0.2.1 Beta）**
+> **当前处于早期测试阶段（v0.2.2 Beta）**
 > 本插件仍在持续迭代与打磨中，部分功能、配置结构与界面细节可能会在后续版本中调整。如遇到问题或有改进建议，欢迎在 [Issues](https://github.com/A16Nights/dsh-azure-glass/issues) 反馈。
 
 **苍蓝琉璃工坊 · Azure Glass Atelier（`dsh-azure-glass`）** 采用零构建依赖设计，开箱即用，提供 **「设置页」** 与 **「右侧边栏」** 双入口工坊面板，集长会话性能加速、桌面级毛玻璃视觉定制、皮肤与插件更新管理、效率增强套件与上下文观察窗于一体。

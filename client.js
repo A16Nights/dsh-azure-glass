@@ -21,7 +21,7 @@ window.__ModuleLoader__.load({
     const jsxs = jsxRuntime.jsxs;
 
     const NS = 'dsh-azure-glass';
-    const PLUGIN_VERSION = '0.2.1';
+    const PLUGIN_VERSION = '0.2.2';
     const SECTION_SLOT = 'settings.section';
     const STYLE_ID = 'dsh-azure-glass-style';
     const CACHE_KEY = 'dsh_azure_glass_config_v3';
